@@ -1,0 +1,25 @@
+{
+  "antigravity-catgirl-pet": {
+    "SessionStart": [
+      {
+        "type": "command",
+        "command": "node scripts/inject_pet.js --ensure",
+        "timeout": 10
+      }
+    ],
+    "PreInvocation": [
+      {
+        "type": "command",
+        "command": "python scripts/notify.py --state coding",
+        "timeout": 5
+      }
+    ],
+    "Stop": [
+      {
+        "type": "command",
+        "command": "python scripts/notify.py --state celebrate",
+        "timeout": 5
+      }
+    ]
+  }
+}

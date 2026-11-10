@@ -1,0 +1,27 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Port & runtime temporary files
+.port
+sidecars/pet-widget/.port
+*.log
+_stage*.log
+_tmp*.log
+*.tmp
+
+# Operating system files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Environments & dependencies
+venv/
+.venv/
+env/
+node_modules/
+
+# Editor directories
+.vscode/
+.idea/

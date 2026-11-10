@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gemini 星星猫娘 · 桌宠挂件</title>
+  <script src="https://www.gstatic.com/antigravity/web/dev/tailwindcss.min.js"></script>
+  <style>
+    /* 果冻弹性与阻尼动画 */
+    .jelly-pet {
+      transition: transform 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
+      user-select: none;
+      touch-action: none;
+      cursor: grab;
+    }
+    .jelly-pet.grabbing {
+      cursor: grabbing;
+      transform: scale(0.88, 1.18) !important;
+      transition: transform 0.08s ease !important;
+    }
+    .jelly-pet.flipped {
+      transform: scaleX(-1);
+    }
+    .jelly-pet.flipped.grabbing {
+      transform: scaleX(-1) scale(0.88, 1.18) !important;
+    }
+
+    /* 任务完成 Duang 弹性脉冲 */
+    @keyframes duangEffect {
+      0% { transform: scale(1); }
+      30% { transform: scale(1.35, 0.7); }
+      55% { transform: scale(0.8, 1.25); }
+      75% { transform: scale(1.12, 0.9); }
+      90% { transform: scale(0.96, 1.04); }
+      100% { transform: scale(1); }
+    }
+    .duang-active {
+      animation: duangEffect 0.65s cubic-bezier(0.34, 1.56, 0.64, 1) forwards !important;
+    }
+    .flipped.duang-active {
+      animation: duangEffect 0.65s cubic-bezier(0.34, 1.56, 0.64, 1) forwards !important;
+    }
+
+    /* 敲代码微晃 */
+    @keyframes typingWiggle {
+      0%, 100% { transform: translateY(0px) rotate(0deg); }
+      25% { transform: translateY(-3px) rotate(-1.5deg); }
+      75% { transform: translateY(-2px) rotate(1.5deg); }
+    }
+    .typing-wiggle {
+      animation: typingWiggle 0.35s ease-in-out infinite;
+    }
+
+    /* 思考轻浮动 */
+    @keyframes thinkingFloat {
+      0%, 100% { transform: translateY(0px); }
+      50% { transform: translateY(-6px); }
+    }
+    .thinking-float {
+      animation: thinkingFloat 2s ease-in-out infinite;
+    }
+
+    /* 警报慌乱微抖 */
+    @keyframes panicShake {
+      0%, 100% { transform: translate(0, 0); }
+      20% { transform: translate(-3px, 1px); }
+      40% { transform: translate(3px, -1px); }
+      60% { transform: translate(-2px, -1px); }
+      80% { transform: translate(2px, 1px); }
+    }
+    .panic-shake {
+      animation: panicShake 0.25s linear infinite;
+    }
+  </style>
+</head>
+<body class="bg-transparent text-[var(--foreground)] min-h-screen overflow-hidden p-3 antialiased font-sans select-none">
+  
+  <div id="container" class="relative w-full h-screen flex flex-col justify-between">
+    
+    <!-- 顶部极简状态 HUD -->
+    <header class="flex justify-between items-center px-2 py-1.5 rounded-xl bg-[var(--card)]/80 backdrop-blur border border-[var(--border)] shadow-sm text-xs">
+      <div class="flex items-center gap-1.5">
+        <span id="agent-state-dot" class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+        <span id="agent-state-text" class="font-bold text-[var(--foreground)]">星星猫娘待命</span>
+      </div>
+      <div class="flex items-center gap-2 font-mono text-[11px] text-[var(--muted-foreground)]">
+        <span id="hud-token">Token: 42k</span>
+        <button onclick="triggerDuang()" title="测试 Duang 提醒" class="px-2 py-0.5 rounded bg-[var(--secondary)] text-[var(--secondary-foreground)] hover:opacity-80 transition font-sans text-[10px]">
+          Duang~
+        </button>
+      </div>
+    </header>
+
+    <!-- 悬浮桌宠挂件核心主体 (支持全屏自由拖拽吸附) -->
+    <div id="floating-pet" 
+         class="jelly-pet absolute bottom-5 right-5 w-40 flex flex-col items-center z-30 select-none">
+      
+      <!-- 气泡对话框 -->
+      <div id="pet-bubble" class="opacity-0 transition-opacity duration-300 pointer-events-none mb-1 px-3 py-1.5 rounded-xl bg-[var(--card)] border border-[var(--border)] shadow-xl text-xs text-[var(--foreground)] font-bold text-center whitespace-nowrap">
+        Duang! 任务跑完啦~ ✨
+      </div>
+
+      <!-- 角色立绘主体 -->
+      <div id="pet-avatar-wrap" class="relative group">
+        <video id="pet-video" autoplay loop muted playsinline preload="auto" src="/assets/gemini/idle/motion.webm" class="w-32 h-36 object-contain pointer-events-none drop-shadow-md"></video>
+        <img id="pet-img" 
+             src="/assets/idle.png" 
+             alt="Gemini Star Catgirl" 
+             class="w-32 h-36 object-contain pointer-events-none drop-shadow-md hidden">
+        
+        <!-- 状态小角标 -->
+        <div id="status-badge" class="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-blue-500 border-2 border-white flex items-center justify-center text-[11px] text-white shadow-md font-bold">
+          ⭐
+        </div>
+      </div>
+
+      <!-- 肚皮悬浮条 (Token 监控胶囊) -->
+      <div class="mt-1 px-3 py-0.5 rounded-full bg-[var(--card)]/90 backdrop-blur border border-[var(--border)] text-[10px] font-mono shadow-sm flex items-center gap-1.5">
+        <span id="badge-dot" class="inline-block w-1.5 h-1.5 rounded-full bg-green-500"></span>
+        <span id="pet-token-pill">Token: 42k</span>
+      </div>
+
+    </div>
+
+  </div>
+
+  <script>
+    const pet = document.getElementById('floating-pet');
+    const container = document.getElementById('container');
+    const petImg = document.getElementById('pet-img');
+    const bubble = document.getElementById('pet-bubble');
+    const statusBadge = document.getElementById('status-badge');
+    const badgeDot = document.getElementById('badge-dot');
+    const hudToken = document.getElementById('hud-token');
+    const petTokenPill = document.getElementById('pet-token-pill');
+    const stateDot = document.getElementById('agent-state-dot');
+    const stateText = document.getElementById('agent-state-text');
+
+    const sprites = {
+      idle: "/assets/idle.png",
+      thinking: "/assets/thinking.png",
+      coding: "/assets/coding.png",
+      celebrate: "/assets/celebrate.png",
+      warning: "/assets/warning.png"
+    };
+
+    function clearAnimations() {
+      pet.classList.remove('duang-active', 'typing-wiggle', 'thinking-float', 'panic-shake');
+    }
+
+    function applyState(data) {
+      const state = data.state || 'idle';
+      const detail = data.detail || '';
+      clearAnimations();
+
+      const actionMap = {
+        idle: 'idle',
+        thinking: 'reviewing',
+        coding: 'working',
+        celebrate: 'jump',
+        warning: 'emotion-frightened',
+        wave: 'wave',
+        starry: 'emotion-starry',
+        cheerful: 'emotion-cheerful',
+        shy: 'emotion-shy',
+        confused: 'emotion-confused'
+      };
+      const actFolder = actionMap[state] || state;
+      const petVideo = document.getElementById('pet-video');
+      if (petVideo) {
+        petVideo.src = `/assets/gemini/${actFolder}/motion.webm`;
+        petVideo.play().catch(() => {});
+        petVideo.classList.remove('hidden');
+        petImg.classList.add('hidden');
+      } else if (sprites[state]) {
+        petImg.src = sprites[state];
+      }
+
+      if (data.tokens) {
+        hudToken.textContent = `Token: ${data.tokens}`;
+        petTokenPill.textContent = `Token: ${data.tokens}`;
+      }
+
+      switch(state) {
+        case 'thinking':
+          statusBadge.textContent = '💭';
+          statusBadge.className = "absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-purple-500 border-2 border-white flex items-center justify-center text-[11px] text-white shadow-md font-bold";
+          stateDot.className = "w-2 h-2 rounded-full bg-purple-500 animate-pulse";
+          stateText.textContent = "Agent 思考中...";
+          pet.classList.add('thinking-float');
+          showBubble(detail || "让我想想怎么写最优喵... 💭", 2200);
+          break;
+        case 'coding':
+          statusBadge.textContent = '⚡';
+          statusBadge.className = "absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-cyan-500 border-2 border-white flex items-center justify-center text-[11px] text-white shadow-md font-bold";
+          stateDot.className = "w-2 h-2 rounded-full bg-cyan-500 animate-ping";
+          stateText.textContent = "敲键盘码字中";
+          pet.classList.add('typing-wiggle');
+          showBubble(detail || "哒哒哒！疯狂敲键盘输出中~ ⌨️", 2200);
+          break;
+        case 'celebrate':
+          statusBadge.textContent = '🎉';
+          statusBadge.className = "absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-emerald-500 border-2 border-white flex items-center justify-center text-[11px] text-white shadow-md font-bold";
+          stateDot.className = "w-2 h-2 rounded-full bg-emerald-500";
+          stateText.textContent = "任务搞定啦！";
+          pet.classList.add('duang-active');
+          showBubble(detail || "🔔 Duang! 任务搞定啦，快来验收！✨", 3200);
+          break;
+        case 'warning':
+          statusBadge.textContent = '⚠️';
+          statusBadge.className = "absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-amber-500 border-2 border-white flex items-center justify-center text-[11px] text-white shadow-md font-bold";
+          stateDot.className = "w-2 h-2 rounded-full bg-amber-500 animate-ping";
+          stateText.textContent = "上下文水位超 80%！";
+          pet.classList.add('panic-shake');
+          showBubble(detail || "💦 满头大汗！快输入 /compact 帮我压缩减负~", 3500);
+          break;
+        default: // idle
+          statusBadge.textContent = '⭐';
+          statusBadge.className = "absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-blue-500 border-2 border-white flex items-center justify-center text-[11px] text-white shadow-md font-bold";
+          stateDot.className = "w-2 h-2 rounded-full bg-green-500";
+          stateText.textContent = "星星猫娘待命";
+          break;
+      }
+    }
+
+    // 拖拽手感算法 (Squash & Stretch)
+    let isDragging = false;
+    let offsetX = 0;
+    let offsetY = 0;
+
+    pet.addEventListener('pointerdown', (e) => {
+      isDragging = true;
+      pet.classList.add('grabbing');
+      pet.classList.remove('duang-active');
+      const petRect = pet.getBoundingClientRect();
+      offsetX = e.clientX - petRect.left;
+      offsetY = e.clientY - petRect.top;
+      pet.setPointerCapture(e.pointerId);
+    });
+
+    pet.addEventListener('pointermove', (e) => {
+      if (!isDragging) return;
+      let newLeft = e.clientX - offsetX;
+      let newTop = e.clientY - offsetY;
+
+      newLeft = Math.max(10, Math.min(window.innerWidth - pet.offsetWidth - 10, newLeft));
+      newTop = Math.max(10, Math.min(window.innerHeight - pet.offsetHeight - 10, newTop));
+
+      pet.style.left = `${newLeft}px`;
+      pet.style.top = `${newTop}px`;
+      pet.style.bottom = 'auto';
+      pet.style.right = 'auto';
+    });
+
+    pet.addEventListener('pointerup', (e) => {
+      if (!isDragging) return;
+      isDragging = false;
+      pet.classList.remove('grabbing');
+
+      // 弹性吸附边缘 (Snap to edge)
+      const screenWidth = window.innerWidth;
+      const currentLeft = pet.offsetLeft;
+      const petWidth = pet.offsetWidth;
+
+      if (currentLeft + petWidth / 2 < screenWidth / 2) {
+        // 吸附左侧并水平翻转
+        pet.style.left = '16px';
+        pet.classList.add('flipped');
+      } else {
+        // 吸附右侧常规朝向
+        pet.style.left = `${screenWidth - petWidth - 16}px`;
+        pet.classList.remove('flipped');
+      }
+    });
+
+    function showBubble(text, duration = 2400) {
+      bubble.textContent = text;
+      bubble.style.opacity = '1';
+      setTimeout(() => {
+        bubble.style.opacity = '0';
+      }, duration);
+    }
+
+    function triggerDuang() {
+      applyState({ state: 'celebrate', detail: '🔔 Duang! 任务完成啦，快来验收！' });
+    }
+
+    // 连接 SSE 实时状态流
+    function setupSSE() {
+      const evtSource = new EventSource('/events');
+      evtSource.onmessage = function(e) {
+        try {
+          const data = JSON.parse(e.data);
+          applyState(data);
+        } catch (err) {}
+      };
+      evtSource.onerror = function() {
+        // 断开时回退到轮询
+        setTimeout(pollState, 2000);
+      };
+    }
+
+    function pollState() {
+      fetch('/api/state')
+        .then(res => res.json())
+        .then(data => {
+          applyState(data);
+          setTimeout(pollState, 1500);
+        })
+        .catch(() => setTimeout(pollState, 3000));
+    }
+
+    // 初始化
+    setupSSE();
+  </script>
+</body>
+</html>

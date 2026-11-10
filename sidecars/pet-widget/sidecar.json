@@ -1,0 +1,20 @@
+{
+  "command": "python",
+  "args": [
+    "server.py"
+  ],
+  "restart_policy": "always",
+  "display_name": "星星猫娘桌宠",
+  "description": "住在 Antigravity 的星星猫娘桌宠挂件。支持果冻拖拽物理、边缘吸附与翻转、Token 监控以及 Agent 状态感知。",
+  "has_web_ui": true,
+  "ui_config": {
+    "display_name": "星星猫娘桌宠",
+    "views": [
+      {
+        "title": "星星猫娘桌宠",
+        "path": "/",
+        "entrypoint": "SIDECAR_UI_ENTRYPOINT_AUX_PANE"
+      }
+    ]
+  }
+}
