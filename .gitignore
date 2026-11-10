@@ -22,6 +22,9 @@ venv/
 env/
 node_modules/
 
+# Large media exports
+*.mp4
+
 # Editor directories
 .vscode/
 .idea/
