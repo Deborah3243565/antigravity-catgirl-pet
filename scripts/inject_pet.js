@@ -1411,6 +1411,96 @@ async function main() {
                 box-shadow: 0 0 6px rgba(168, 85, 247, 0.4);
               }
 
+              /* 远程更新检测卡片与按钮 */
+              .catgirl-update-box {
+                background: rgba(255, 255, 255, 0.05);
+                border: 1px solid rgba(255, 255, 255, 0.08);
+                border-radius: 8px;
+                padding: 7px 10px;
+                margin-bottom: 6px;
+                display: flex;
+                flex-direction: column;
+                gap: 6px;
+                box-sizing: border-box;
+              }
+              .catgirl-update-header {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                width: 100%;
+              }
+              .catgirl-version-tag {
+                font-size: 9px;
+                padding: 1.5px 5px;
+                border-radius: 4px;
+                background: rgba(99, 102, 241, 0.25);
+                color: #a5b4fc;
+                font-weight: 600;
+              }
+              .catgirl-update-check-btn {
+                background: rgba(255, 255, 255, 0.1);
+                border: 1px solid rgba(255, 255, 255, 0.15);
+                color: #e2e8f0;
+                font-size: 9.5px;
+                font-weight: 600;
+                border-radius: 6px;
+                padding: 2.5px 7px;
+                cursor: pointer;
+                display: flex;
+                align-items: center;
+                gap: 4px;
+                transition: all 0.15s ease;
+              }
+              .catgirl-update-check-btn:hover {
+                background: #3b82f6;
+                color: #fff;
+                border-color: #60a5fa;
+              }
+              .catgirl-update-detail {
+                font-size: 9.5px;
+                line-height: 1.4;
+                color: #cbd5e1;
+                background: rgba(0, 0, 0, 0.28);
+                border-radius: 6px;
+                padding: 6px 8px;
+                display: flex;
+                flex-direction: column;
+                gap: 5px;
+              }
+              .catgirl-upgrade-action-btn {
+                background: linear-gradient(135deg, #10b981, #059669);
+                border: none;
+                color: #fff;
+                font-size: 10px;
+                font-weight: 700;
+                border-radius: 6px;
+                padding: 5px 8px;
+                cursor: pointer;
+                box-shadow: 0 2px 8px rgba(16, 185, 129, 0.35);
+                transition: all 0.2s ease;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                gap: 4px;
+              }
+              .catgirl-upgrade-action-btn:hover {
+                background: linear-gradient(135deg, #059669, #047857);
+                transform: translateY(-1px);
+              }
+              .catgirl-upgrade-action-btn:disabled {
+                opacity: 0.6;
+                cursor: not-allowed;
+                transform: none;
+              }
+              @keyframes catgirl-spin {
+                0% { transform: rotate(0deg); }
+                100% { transform: rotate(360deg); }
+              }
+              .catgirl-spinning {
+                animation: catgirl-spin 0.8s linear infinite;
+                display: inline-block;
+              }
+
               .catgirl-menu-item {
                 padding: 6px 10px;
                 border-radius: 8px;
@@ -1681,6 +1771,23 @@ async function main() {
                   <span class="catgirl-preset-btn" data-scale="1.6">160%</span>
                 </div>
               </div>
+
+              <!-- 远程更新检测与一键配置卡片 -->
+              <div class="catgirl-update-box" id="menu-update-card">
+                <div class="catgirl-update-header">
+                  <div style="display: flex; align-items: center; gap: 6px;">
+                    <span>🚀</span>
+                    <span style="font-weight: 600; font-size: 11px;">版本状态</span>
+                    <span id="pet-version-tag" class="catgirl-version-tag">v1.0.0</span>
+                  </div>
+                  <button id="pet-check-update-btn" class="catgirl-update-check-btn" title="点击检查 GitHub 远程是否有新版本">
+                    <span id="pet-update-icon">🔄</span>
+                    <span id="pet-check-btn-text">检查更新</span>
+                  </button>
+                </div>
+                <div id="pet-update-status-detail" class="catgirl-update-detail" style="display: none;"></div>
+              </div>
+
               <div class="catgirl-menu-item" id="menu-ontop">
                 <span>📌</span> <span id="ontop-text">置顶开关: 开</span>
               </div>
@@ -2775,6 +2882,145 @@ async function main() {
               dock.style.bottom = '24px';
               setScale(1.0, 'preset');
             }
+
+            // 版本检查与一键更新逻辑
+            let currentVersion = '1.0.0';
+            let latestUpdateInfo = null;
+
+            async function checkPetUpdate(manual = false) {
+              const scPort = window.__catgirl_sidecar_port || 18980;
+              const icon = document.getElementById('pet-update-icon');
+              const btnText = document.getElementById('pet-check-btn-text');
+              const detailEl = document.getElementById('pet-update-status-detail');
+
+              if (icon) icon.classList.add('catgirl-spinning');
+              if (btnText) btnText.textContent = '检查中...';
+
+              try {
+                const endpoint = manual ? \`http://127.0.0.1:\${scPort}/api/check-update\` : \`http://127.0.0.1:\${scPort}/api/update\`;
+                const res = await fetch(endpoint, {
+                  method: manual ? 'POST' : 'GET',
+                  headers: { 'Content-Type': 'application/json' }
+                });
+                const data = await res.json();
+                latestUpdateInfo = data;
+
+                if (data.currentVersion) {
+                  currentVersion = data.currentVersion;
+                  const tag = document.getElementById('pet-version-tag');
+                  if (tag) tag.textContent = \`v\${currentVersion}\`;
+                }
+
+                if (data.hasUpdate) {
+                  if (detailEl) {
+                    detailEl.style.display = 'flex';
+                    detailEl.innerHTML = \`
+                      <div style="color: #34d399; font-weight: 600;">🎉 发现新版本：v\${data.latestVersion || '最新'}</div>
+                      <div style="font-size: 8.5px; opacity: 0.85; max-height: 48px; overflow-y: auto;">
+                        \${data.commitMessage ? '• ' + data.commitMessage : (data.releaseNotes ? '• ' + data.releaseNotes.substring(0, 60) : '• 优化与体验改进')}
+                      </div>
+                      <button id="pet-upgrade-btn" class="catgirl-upgrade-action-btn">
+                        <span>⚡ 立即一键配置更新</span>
+                      </button>
+                    \`;
+                    const upBtn = document.getElementById('pet-upgrade-btn');
+                    if (upBtn) {
+                      upBtn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        performUpgrade();
+                      });
+                    }
+                  }
+                  if (manual) {
+                    showBubble(\`🎉 发现新版本 v\${data.latestVersion}！可在右键菜单一键配置更新喵~\`, 2600);
+                  } else {
+                    showBubble(\`发现 GitHub 有新版本 v\${data.latestVersion} 喵！点击右键菜单可一键更新~ ✨\`, 3000);
+                  }
+                } else {
+                  if (detailEl && manual) {
+                    detailEl.style.display = 'flex';
+                    detailEl.innerHTML = \`
+                      <div style="color: #60a5fa; font-weight: 600;">✨ 当前已是最新版本 (v\${currentVersion})</div>
+                      <div style="font-size: 8.5px; opacity: 0.7;">无需更新，随时待命全速写代码喵~ 🐾</div>
+                    \`;
+                  }
+                  if (manual) {
+                    showBubble(\`当前已是最新版本 (v\${currentVersion}) 喵，无需更新~ ✨\`, 2000);
+                  }
+                }
+              } catch (err) {
+                if (manual && detailEl) {
+                  detailEl.style.display = 'flex';
+                  detailEl.innerHTML = '<div style="color: #f87171;">⚠️ 检查失败: 网络超时或服务未就绪</div>';
+                }
+              } finally {
+                if (icon) icon.classList.remove('catgirl-spinning');
+                if (btnText) btnText.textContent = '检查更新';
+              }
+            }
+
+            async function performUpgrade() {
+              const upBtn = document.getElementById('pet-upgrade-btn');
+              const scPort = window.__catgirl_sidecar_port || 18980;
+              if (upBtn) {
+                upBtn.disabled = true;
+                upBtn.innerHTML = '<span>⏳ 正在拉取更新并自动配置...</span>';
+              }
+              showBubble('正在连接 GitHub 拉取最新代码与配置喵... 🐾', 4000);
+
+              try {
+                const res = await fetch(\`http://127.0.0.1:\${scPort}/api/upgrade\`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' }
+                });
+                const result = await res.json();
+                if (result.success) {
+                  const newVer = result.version || (latestUpdateInfo ? latestUpdateInfo.latestVersion : '最新版');
+                  const tag = document.getElementById('pet-version-tag');
+                  if (tag) tag.textContent = \`v\${newVer}\`;
+                  const detailEl = document.getElementById('pet-update-status-detail');
+                  if (detailEl) {
+                    detailEl.innerHTML = \`
+                      <div style="color: #34d399; font-weight: 600;">✅ 恭喜！一键更新配置成功</div>
+                      <div style="font-size: 8.5px; opacity: 0.8;">当前已是最新版本 v\${newVer} 喵~ ✨</div>
+                    \`;
+                  }
+                  if (window.__antigravityCatgirl?.setState) {
+                    window.__antigravityCatgirl.setState('celebrate', \`🎉 恭喜！已一键升级至最新版本 v\${newVer} 喵！✨\`, null, { force: true });
+                  }
+                } else {
+                  if (upBtn) {
+                    upBtn.disabled = false;
+                    upBtn.innerHTML = '<span>❌ 更新失败，点击重试</span>';
+                  }
+                  showBubble(\`更新失败: \${result.error || '请检查网络'} 喵\`, 2600);
+                }
+              } catch (err) {
+                if (upBtn) {
+                  upBtn.disabled = false;
+                  upBtn.innerHTML = '<span>❌ 请求超时，点击重试</span>';
+                }
+                showBubble('更新请求超时，请检查网络喵~', 2500);
+              }
+            }
+
+            const menuUpdateCard = document.getElementById('menu-update-card');
+            if (menuUpdateCard) {
+              menuUpdateCard.addEventListener('click', (e) => e.stopPropagation());
+            }
+
+            const checkUpdateBtn = document.getElementById('pet-check-update-btn');
+            if (checkUpdateBtn) {
+              checkUpdateBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                checkPetUpdate(true);
+              });
+            }
+
+            // 启动 4.5 秒后在后台静默检查一次更新
+            setTimeout(() => {
+              checkPetUpdate(false);
+            }, 4500);
 
             // Agent 状态分发（防抖动，避免重复切换与重复弹窗）
             window.__antigravityCatgirl = {

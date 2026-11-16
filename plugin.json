@@ -2,11 +2,13 @@
   "name": "antigravity-catgirl-pet",
   "displayName": "Gemini 星星猫娘桌宠",
   "version": "1.0.0",
+  "repository": "https://github.com/Deborah3243565/antigravity-catgirl-pet",
   "description": "住在 Antigravity 的星星猫娘桌宠挂件。具备 QQ 弹弹果冻拖拽物理、边缘吸附翻转、Token 消耗监控，并随 Agent 思考、写代码与完成任务自动切换动画！",
   "logo": "assets/logo.png",
   "suggestedPrompts": [
     "打开星星猫娘桌宠面板",
     "查看当前猫娘桌宠状态与 Token 水位",
+    "检查星星猫娘桌宠更新",
     "切换猫娘桌宠动作"
   ]
 }

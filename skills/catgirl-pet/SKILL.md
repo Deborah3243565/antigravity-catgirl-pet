@@ -40,3 +40,16 @@ node scripts/inject_pet.js
 向用户提供专属面板链接：
 `[星星猫娘桌宠](sidecar://antigravity-catgirl-pet/pet-widget/)`
 用户点击即可在 Antigravity 辅助侧边栏开启挂件！
+
+### 4. 自动检测更新与一键配置
+当用户询问是否有新版本、需要更新桌宠或拉取 GitHub 最新功能时：
+
+- **检查更新**：
+  ```bash
+  node scripts/update_pet.js --check
+  ```
+- **一键配置与升级**：
+  ```bash
+  node scripts/update_pet.js --upgrade
+  ```
+用户也可以在桌宠右键菜单中直接点击 **「🔄 检查更新」** 与 **「⚡ 立即一键配置更新」** 按钮，无需敲任何终端命令即可全自动拉取更新并热重载生效！

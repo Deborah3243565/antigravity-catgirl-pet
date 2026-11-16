@@ -360,6 +360,58 @@ def save_pet_config(data):
             pass
     return cfg
 
+# 远程版本更新检查与升级执行器
+_update_cache = {
+    "last_checked": 0,
+    "data": None
+}
+
+def get_update_script_path():
+    candidates = [
+        os.path.normpath(os.path.join(BASE_DIR, "..", "..", "scripts", "update_pet.js")),
+        os.path.normpath(os.path.join(os.path.expanduser("~"), ".gemini", "config", "plugins", "antigravity-catgirl-pet", "scripts", "update_pet.js"))
+    ]
+    for c in candidates:
+        if os.path.isfile(c):
+            return c
+    return candidates[0]
+
+def run_update_check(force=False):
+    now = time.time()
+    if not force and _update_cache["data"] and (now - _update_cache["last_checked"] < 60):
+        return _update_cache["data"]
+
+    script = get_update_script_path()
+    if not os.path.isfile(script):
+        return {"hasUpdate": False, "error": "Updater script not found"}
+
+    try:
+        flags = 0x08000000 if sys.platform == "win32" else 0
+        res = subprocess.run(["node", script, "--check"], capture_output=True, timeout=15, creationflags=flags)
+        out = res.stdout.decode("utf-8", errors="ignore").strip()
+        data = json.loads(out)
+        _update_cache["data"] = data
+        _update_cache["last_checked"] = now
+        return data
+    except Exception as e:
+        return {"hasUpdate": False, "error": str(e)}
+
+def run_apply_upgrade():
+    script = get_update_script_path()
+    if not os.path.isfile(script):
+        return {"success": False, "error": "Updater script not found"}
+
+    try:
+        flags = 0x08000000 if sys.platform == "win32" else 0
+        res = subprocess.run(["node", script, "--upgrade"], capture_output=True, timeout=60, creationflags=flags)
+        out = res.stdout.decode("utf-8", errors="ignore").strip()
+        data = json.loads(out)
+        _update_cache["data"] = None
+        _update_cache["last_checked"] = 0
+        return data
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
 mimetypes.add_type("video/webm", ".webm")
 mimetypes.add_type("image/webp", ".webp")
 
@@ -542,6 +594,24 @@ class PetRequestHandler(BaseHTTPRequestHandler):
             self.close_connection = True
             return
 
+        # 3.2 检查版本更新接口
+        if clean_path == "/api/update":
+            data = run_update_check(force=False)
+            payload = json.dumps(data, ensure_ascii=False).encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Content-Length", str(len(payload)))
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+            self.send_header("Access-Control-Allow-Headers", "*")
+            self.send_header("Access-Control-Allow-Private-Network", "true")
+            self.send_header("Connection", "close")
+            self.end_headers()
+            self.wfile.write(payload)
+            self.wfile.flush()
+            self.close_connection = True
+            return
+
         # 4. SSE 实时事件流
         if clean_path == "/events":
             self.send_response(200)
@@ -672,6 +742,53 @@ class PetRequestHandler(BaseHTTPRequestHandler):
                 self.wfile.write(err_content)
                 self.wfile.flush()
                 self.close_connection = True
+            return
+
+        # 强制检查新版本接口
+        if clean_path == "/api/check-update":
+            data = run_update_check(force=True)
+            payload = json.dumps(data, ensure_ascii=False).encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Content-Length", str(len(payload)))
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+            self.send_header("Access-Control-Allow-Headers", "*")
+            self.send_header("Access-Control-Allow-Private-Network", "true")
+            self.send_header("Connection", "close")
+            self.end_headers()
+            self.wfile.write(payload)
+            self.wfile.flush()
+            self.close_connection = True
+            return
+
+        # 一键拉取更新与自动配置
+        if clean_path == "/api/upgrade":
+            data = run_apply_upgrade()
+            if data.get("success"):
+                current_state["state"] = "celebrate"
+                ver_text = f" v{data.get('version', '')}" if data.get('version') else ""
+                current_state["detail"] = f"🎉 星星猫娘已成功升级至最新版本{ver_text}！✨"
+                current_state["timestamp"] = time.time()
+                event_data = f"data: {json.dumps(current_state)}\n\n".encode("utf-8")
+                for q in list(sse_subscribers):
+                    try:
+                        q.put_nowait(event_data)
+                    except Exception:
+                        pass
+            payload = json.dumps(data, ensure_ascii=False).encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Content-Length", str(len(payload)))
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+            self.send_header("Access-Control-Allow-Headers", "*")
+            self.send_header("Access-Control-Allow-Private-Network", "true")
+            self.send_header("Connection", "close")
+            self.end_headers()
+            self.wfile.write(payload)
+            self.wfile.flush()
+            self.close_connection = True
             return
 
         self.send_response(404)

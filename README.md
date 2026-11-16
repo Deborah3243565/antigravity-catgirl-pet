@@ -33,6 +33,9 @@
 - 🚀 **后台任务感知与一键穿梭**：
   - 自动感知后台所有正在运行的 Agent 任务；
   - 右键呼出菜单可直接查看任务进度，点击任意任务卡片**一键跳转切入该任务对话**！
+- 🔄 **自动检测新版本与一键配置更新**：
+  - 启动时自动静默对比 GitHub 仓库最新 Release 与 Commit，有新功能发布时猫娘自动冒泡提示；
+  - 右键菜单提供专属「🚀 版本状态」卡片与「🔄 检查更新」，点击「⚡ 立即一键配置更新」全自动增量拉取最新代码并热重载生效，零命令门槛！
 - 💬 **50+ 句傲娇精选台词与点击互动**：
   - 轻触或连戳猫娘触发果冻回弹动效与傲娇趣味台词。
 
@@ -43,9 +46,8 @@
 在您电脑上的 **Google Antigravity** 任意对话窗口中，直接对 Agent 发送下面这一句话：
 
 ```text
-帮我安装这个 Antigravity 插件：https://github.com/<你的用户名>/antigravity-catgirl-pet
+帮我安装这个 Antigravity 插件：https://github.com/Deborah3243565/antigravity-catgirl-pet
 ```
-*(注：请将链接替换为您发布后的实际 GitHub 仓库地址)*
 
 > **为什么能一句话安装？**  
 > Antigravity 的 AI Agent 会自动执行 `git clone` 将本仓库克隆到全局插件目录 `~/.gemini/config/plugins/antigravity-catgirl-pet`。克隆完成后，Antigravity 会自动识别 `plugin.json`、`hooks.json` 与 `skills`，开箱即用！
