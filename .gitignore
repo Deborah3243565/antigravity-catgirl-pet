@@ -6,6 +6,8 @@ __pycache__/
 # Port & runtime temporary files
 .port
 sidecars/pet-widget/.port
+pet_config.json
+catgirl_pet_config.json
 *.log
 _stage*.log
 _tmp*.log

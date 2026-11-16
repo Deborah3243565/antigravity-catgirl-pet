@@ -36,8 +36,48 @@ function getBase64Images() {
   return res;
 }
 
+function getConfigPaths() {
+  const home = process.env.USERPROFILE || process.env.HOME || '';
+  const paths = [];
+  if (home) {
+    paths.push(path.join(home, '.gemini', 'antigravity', 'catgirl_pet_config.json'));
+    paths.push(path.join(home, '.gemini', 'config', 'plugins', 'antigravity-catgirl-pet', 'pet_config.json'));
+  }
+  paths.push(path.join(__dirname, '..', 'pet_config.json'));
+  return paths;
+}
+
+function loadPetConfig() {
+  for (const p of getConfigPaths()) {
+    try {
+      if (fs.existsSync(p)) {
+        const raw = fs.readFileSync(p, 'utf8');
+        const data = JSON.parse(raw);
+        if (data && typeof data === 'object') return data;
+      }
+    } catch (e) {}
+  }
+  return { scale: 1.3 };
+}
+
+function savePetConfig(cfg) {
+  for (const p of getConfigPaths()) {
+    try {
+      const dir = path.dirname(p);
+      if (fs.existsSync(dir)) {
+        fs.writeFileSync(p, JSON.stringify(cfg, null, 2), 'utf8');
+      }
+    } catch (e) {}
+  }
+}
+
 async function main() {
   const isEnsure = process.argv.includes('--ensure');
+  const petConfig = loadPetConfig();
+  const initialScale = (typeof petConfig.scale === 'number' && !isNaN(petConfig.scale))
+    ? Math.max(0.4, Math.min(2.5, petConfig.scale))
+    : 1.3;
+
   let port;
   try {
     port = getCdpPort();
@@ -51,16 +91,19 @@ async function main() {
   try {
     const home = process.env.HOME || process.env.USERPROFILE || '';
     const portCandidates = [
-      path.join(__dirname, '..', 'sidecars', 'pet-widget', '.port'),
-      path.join(__dirname, '..', '.port'),
       path.join(home, '.gemini', 'config', 'plugins', 'antigravity-catgirl-pet', 'sidecars', 'pet-widget', '.port'),
-      path.join(home, '.gemini', 'config', 'plugins', 'antigravity-catgirl-pet', '.port')
-    ];
+      path.join(home, '.gemini', 'config', 'plugins', 'antigravity-catgirl-pet', '.port'),
+      path.join(__dirname, '..', 'sidecars', 'pet-widget', '.port'),
+      path.join(__dirname, '..', '.port')
+    ].filter(p => fs.existsSync(p));
+
+    portCandidates.sort((a, b) => {
+      try { return fs.statSync(b).mtimeMs - fs.statSync(a).mtimeMs; } catch (e) { return 0; }
+    });
+
     for (const p of portCandidates) {
-      if (fs.existsSync(p)) {
-        const val = parseInt(fs.readFileSync(p, 'utf8').trim(), 10);
-        if (val > 0) { sidecarPort = val; break; }
-      }
+      const val = parseInt(fs.readFileSync(p, 'utf8').trim(), 10);
+      if (val > 0) { sidecarPort = val; break; }
     }
   } catch (e) {}
 
@@ -138,6 +181,7 @@ async function main() {
         const clientScript = `
           (function() {
             window.__catgirl_sidecar_port = ${sidecarPort};
+            window.__catgirl_initial_scale = ${initialScale};
             function mountPet() {
               if (!document.body || !document.head) {
                 if (document.readyState === 'loading') {
@@ -1361,6 +1405,11 @@ async function main() {
                 background: #3b82f6;
                 color: #ffffff;
               }
+              .catgirl-preset-btn.active {
+                background: linear-gradient(135deg, #6366f1, #a855f7);
+                color: #ffffff;
+                box-shadow: 0 0 6px rgba(168, 85, 247, 0.4);
+              }
 
               .catgirl-menu-item {
                 padding: 6px 10px;
@@ -2338,12 +2387,17 @@ async function main() {
             }
             window.__catgirl_showBubble = showBubble;
 
-            // 统一的缩放控制中枢（支持滑块拖动、预设档位、滚轮无级缩放与持久化记忆）
-            let currentScale = 1.0;
+            // 统一的缩放控制中枢（支持滑块拖动、预设档位、滚轮无级缩放与跨会话持久化记忆）
+            let currentScale = (typeof window.__catgirl_initial_scale === 'number' && !isNaN(window.__catgirl_initial_scale))
+              ? window.__catgirl_initial_scale
+              : 1.3;
             try {
               const savedScale = localStorage.getItem('antigravity_catgirl_scale');
               if (savedScale) {
-                currentScale = parseFloat(savedScale);
+                const parsed = parseFloat(savedScale);
+                if (!isNaN(parsed) && parsed >= 0.4 && parsed <= 2.5) {
+                  currentScale = parsed;
+                }
               }
             } catch(e) {}
 
@@ -2366,19 +2420,56 @@ async function main() {
                 badge.textContent = \`\${percent}%\`;
               }
 
+              // 高亮匹配的预设档位
+              document.querySelectorAll('.catgirl-preset-btn').forEach(btn => {
+                const s = parseFloat(btn.getAttribute('data-scale'));
+                if (Math.abs(s - currentScale) < 0.05) {
+                  btn.classList.add('active');
+                } else {
+                  btn.classList.remove('active');
+                }
+              });
+
               try {
                 localStorage.setItem('antigravity_catgirl_scale', currentScale.toString());
               } catch(e) {}
 
+              // 防抖同步持久化至磁盘配置文件（通过 sidecar 后台服务），确保重新打开 Antigravity 时保持所设大小
+              if (window.__catgirl_scale_sync_timer) {
+                clearTimeout(window.__catgirl_scale_sync_timer);
+              }
+              window.__catgirl_scale_sync_timer = setTimeout(() => {
+                const scPort = window.__catgirl_sidecar_port || 18980;
+                fetch(\`http://127.0.0.1:\${scPort}/api/config\`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ scale: parseFloat(currentScale.toFixed(2)) })
+                }).catch(() => {});
+              }, 250);
+
               updateBubblePosition();
 
               if (fromSource === 'wheel' || fromSource === 'preset') {
-                showBubble(\`大小已调节为: \${percent}%\`, 1200);
+                showBubble(\`大小已调节为: \${percent}% (已自动记忆🐾)\`, 1200);
               }
             }
 
             // 初始化缩放应用
             setScale(currentScale, 'init');
+
+            // 异步与磁盘配置文件对齐最新缩放大小
+            try {
+              const scPort = window.__catgirl_sidecar_port || 18980;
+              fetch(\`http://127.0.0.1:\${scPort}/api/config\`)
+                .then(r => r.json())
+                .then(cfg => {
+                  if (cfg && typeof cfg.scale === 'number' && !isNaN(cfg.scale)) {
+                    if (Math.abs(cfg.scale - currentScale) > 0.01) {
+                      setScale(cfg.scale, 'disk_sync');
+                    }
+                  }
+                }).catch(() => {});
+            } catch(e) {}
 
             // 1. 滑块自由拖动缩放
             const scaleNumberInput = document.getElementById('scale-number-input');

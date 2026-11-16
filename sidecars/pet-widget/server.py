@@ -317,6 +317,49 @@ current_state = {
 }
 sse_subscribers = []
 
+def get_config_paths():
+    home = os.environ.get("USERPROFILE") or os.environ.get("HOME") or ""
+    paths = []
+    if home:
+        paths.append(os.path.join(home, ".gemini", "antigravity", "catgirl_pet_config.json"))
+        paths.append(os.path.join(home, ".gemini", "config", "plugins", "antigravity-catgirl-pet", "pet_config.json"))
+    paths.append(os.path.normpath(os.path.join(BASE_DIR, "..", "..", "pet_config.json")))
+    return paths
+
+def load_pet_config():
+    for p in get_config_paths():
+        if os.path.isfile(p):
+            try:
+                with open(p, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    if isinstance(data, dict):
+                        return data
+            except Exception:
+                pass
+    return {"scale": 1.3}
+
+def save_pet_config(data):
+    cfg = load_pet_config()
+    if isinstance(data, dict):
+        if "scale" in data:
+            try:
+                s = float(data["scale"])
+                cfg["scale"] = round(max(0.4, min(2.5, s)), 2)
+            except (ValueError, TypeError):
+                pass
+        for k, v in data.items():
+            if k != "scale":
+                cfg[k] = v
+    for p in get_config_paths():
+        try:
+            d = os.path.dirname(os.path.abspath(p))
+            if os.path.isdir(d):
+                with open(p, "w", encoding="utf-8") as f:
+                    json.dump(cfg, f, ensure_ascii=False, indent=2)
+        except Exception:
+            pass
+    return cfg
+
 mimetypes.add_type("video/webm", ".webm")
 mimetypes.add_type("image/webp", ".webp")
 
@@ -481,6 +524,24 @@ class PetRequestHandler(BaseHTTPRequestHandler):
             self.close_connection = True
             return
 
+        # 3.1 获取持久化配置接口
+        if clean_path == "/api/config":
+            cfg = load_pet_config()
+            payload = json.dumps(cfg, ensure_ascii=False).encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Content-Length", str(len(payload)))
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+            self.send_header("Access-Control-Allow-Headers", "*")
+            self.send_header("Access-Control-Allow-Private-Network", "true")
+            self.send_header("Connection", "close")
+            self.end_headers()
+            self.wfile.write(payload)
+            self.wfile.flush()
+            self.close_connection = True
+            return
+
         # 4. SSE 实时事件流
         if clean_path == "/events":
             self.send_response(200)
@@ -576,6 +637,39 @@ class PetRequestHandler(BaseHTTPRequestHandler):
                 self.send_header("Connection", "close")
                 self.end_headers()
                 self.wfile.write(str(e).encode("utf-8"))
+                self.wfile.flush()
+                self.close_connection = True
+            return
+
+        if clean_path == "/api/config":
+            content_length = int(self.headers.get("Content-Length", 0))
+            body = self.rfile.read(content_length).decode("utf-8") if content_length > 0 else "{}"
+            try:
+                data = json.loads(body)
+                cfg = save_pet_config(data)
+                payload = json.dumps({"status": "ok", "config": cfg}, ensure_ascii=False).encode("utf-8")
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json; charset=utf-8")
+                self.send_header("Content-Length", str(len(payload)))
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+                self.send_header("Access-Control-Allow-Headers", "*")
+                self.send_header("Access-Control-Allow-Private-Network", "true")
+                self.send_header("Connection", "close")
+                self.end_headers()
+                self.wfile.write(payload)
+                self.wfile.flush()
+                self.close_connection = True
+            except Exception as e:
+                err_content = json.dumps({"error": str(e)}).encode("utf-8")
+                self.send_response(400)
+                self.send_header("Content-Type", "application/json; charset=utf-8")
+                self.send_header("Content-Length", str(len(err_content)))
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.send_header("Access-Control-Allow-Private-Network", "true")
+                self.send_header("Connection", "close")
+                self.end_headers()
+                self.wfile.write(err_content)
                 self.wfile.flush()
                 self.close_connection = True
             return
