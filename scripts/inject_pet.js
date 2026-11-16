@@ -1070,28 +1070,35 @@ async function main() {
                 box-shadow: 0 6px 16px rgba(37, 99, 235, 0.5);
               }
 
-              /* 右键原生级卡片菜单 */
+              /* 右键原生级卡片菜单（紧凑精致、智能避让绝不遮挡桌宠立绘全图） */
               #antigravity-catgirl-contextmenu {
                 position: fixed;
                 z-index: 100000000;
-                background: rgba(15, 23, 42, 0.96);
-                border: 1px solid rgba(255, 255, 255, 0.18);
-                border-radius: 14px;
-                padding: 8px;
-                width: 262px;
-                min-width: 245px;
-                box-shadow: 0 16px 36px rgba(0,0,0,0.65);
-                backdrop-filter: blur(14px);
-                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-                font-size: 11.5px;
+                background: rgba(15, 23, 42, 0.94);
+                border: 1px solid rgba(255, 255, 255, 0.16);
+                border-radius: 12px;
+                padding: 6px 8px;
+                width: 246px;
+                min-width: 236px;
+                box-shadow: 0 12px 32px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(255, 255, 255, 0.06);
+                backdrop-filter: blur(16px);
+                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif;
+                font-size: 11px;
                 color: #f1f5f9;
                 display: none;
                 user-select: none;
-                max-height: calc(100vh - 24px);
+                max-height: calc(100vh - 36px);
                 overflow-y: auto;
                 overflow-x: hidden;
                 scrollbar-width: thin;
-                scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+                scrollbar-color: rgba(255, 255, 255, 0.22) transparent;
+              }
+              #antigravity-catgirl-contextmenu::-webkit-scrollbar {
+                width: 4px;
+              }
+              #antigravity-catgirl-contextmenu::-webkit-scrollbar-thumb {
+                background: rgba(255, 255, 255, 0.22);
+                border-radius: 4px;
               }
               .catgirl-input-wrap {
                 display: flex;
@@ -1150,19 +1157,19 @@ async function main() {
               .catgirl-tasks-list {
                 display: flex;
                 flex-direction: column;
-                gap: 5px;
-                margin-top: 4px;
-                max-height: 135px;
+                gap: 4px;
+                margin-top: 3px;
+                max-height: 105px;
                 overflow-y: auto;
               }
               .catgirl-task-item {
                 background: rgba(15, 23, 42, 0.82);
                 border: 1px solid rgba(56, 189, 248, 0.35);
-                border-radius: 8px;
-                padding: 6px 8px;
+                border-radius: 6px;
+                padding: 4px 6px;
                 display: flex;
                 flex-direction: column;
-                gap: 3px;
+                gap: 2px;
                 cursor: pointer;
                 transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
                 user-select: none;
@@ -1179,7 +1186,7 @@ async function main() {
               }
               .catgirl-task-arrow {
                 margin-left: auto;
-                font-size: 11px;
+                font-size: 10px;
                 color: #38bdf8;
                 opacity: 0.65;
                 transition: transform 0.2s, opacity 0.2s, color 0.2s;
@@ -1192,14 +1199,14 @@ async function main() {
               .catgirl-task-top {
                 display: flex;
                 align-items: center;
-                gap: 5px;
-                font-size: 11px;
+                gap: 4px;
+                font-size: 10.5px;
                 font-weight: 600;
                 color: #f8fafc;
               }
               .catgirl-task-dot {
-                width: 6px;
-                height: 6px;
+                width: 5px;
+                height: 5px;
                 border-radius: 50%;
                 background: #06b6d4;
                 box-shadow: 0 0 6px #22d3ee;
@@ -1211,13 +1218,13 @@ async function main() {
                 50% { opacity: 0.4; transform: scale(0.8); }
               }
               .catgirl-task-ws {
-                font-size: 9.5px;
+                font-size: 9px;
                 padding: 0px 4px;
                 border-radius: 4px;
                 background: rgba(59, 130, 246, 0.28);
                 color: #93c5fd;
                 flex-shrink: 0;
-                max-width: 72px;
+                max-width: 68px;
                 overflow: hidden;
                 text-overflow: ellipsis;
                 white-space: nowrap;
@@ -1229,18 +1236,18 @@ async function main() {
                 flex: 1;
               }
               .catgirl-task-prompt {
-                font-size: 10px;
+                font-size: 9.5px;
                 color: #94a3b8;
                 overflow: hidden;
                 text-overflow: ellipsis;
                 white-space: nowrap;
-                padding-left: 11px;
+                padding-left: 9px;
               }
               .catgirl-task-empty {
-                font-size: 10.5px;
+                font-size: 9.5px;
                 color: #94a3b8;
                 text-align: center;
-                padding: 6px 4px;
+                padding: 4px;
                 background: rgba(255, 255, 255, 0.03);
                 border-radius: 6px;
               }
@@ -1249,21 +1256,21 @@ async function main() {
               .catgirl-action-grid {
                 display: grid;
                 grid-template-columns: repeat(5, 1fr);
-                gap: 4px;
-                margin-top: 6px;
+                gap: 3px;
+                margin-top: 4px;
               }
               .catgirl-action-btn {
                 display: flex;
                 flex-direction: column;
                 align-items: center;
                 justify-content: center;
-                padding: 5px 2px;
-                background: rgba(255, 255, 255, 0.08);
-                border: 1px solid rgba(255, 255, 255, 0.1);
-                border-radius: 8px;
+                padding: 3.5px 1px;
+                background: rgba(255, 255, 255, 0.07);
+                border: 1px solid rgba(255, 255, 255, 0.09);
+                border-radius: 6px;
                 cursor: pointer;
                 transition: all 0.16s ease;
-                font-size: 10px;
+                font-size: 9.5px;
                 color: #cbd5e1;
               }
               .catgirl-action-btn:hover {
@@ -1276,17 +1283,17 @@ async function main() {
                 background: linear-gradient(135deg, #2563eb, #1d4ed8);
                 border-color: #93c5fd;
                 color: #ffffff;
-                box-shadow: 0 2px 8px rgba(37, 99, 235, 0.5);
+                box-shadow: 0 2px 6px rgba(37, 99, 235, 0.45);
                 font-weight: 600;
               }
               .catgirl-action-icon {
-                font-size: 13px;
-                margin-bottom: 2px;
+                font-size: 11.5px;
+                margin-bottom: 1px;
               }
               #action-current-badge {
-                font-size: 10px;
-                padding: 1px 6px;
-                border-radius: 10px;
+                font-size: 9.5px;
+                padding: 1px 5px;
+                border-radius: 8px;
                 background: rgba(59, 130, 246, 0.8);
                 color: #ffffff;
                 font-weight: 600;
@@ -1294,38 +1301,38 @@ async function main() {
 
               /* 待机随机彩蛋动作速览区 */
               .catgirl-egg-box {
-                margin-top: 6px;
-                padding: 5px 6px;
-                background: rgba(255, 255, 255, 0.04);
-                border: 1px dashed rgba(255, 255, 255, 0.15);
-                border-radius: 8px;
+                margin-top: 4px;
+                padding: 3px 4px;
+                background: rgba(255, 255, 255, 0.03);
+                border: 1px dashed rgba(255, 255, 255, 0.12);
+                border-radius: 6px;
               }
               .catgirl-egg-header {
-                font-size: 9.5px;
+                font-size: 8.5px;
                 color: #94a3b8;
                 display: flex;
                 align-items: center;
                 justify-content: space-between;
-                margin-bottom: 4px;
+                margin-bottom: 3px;
                 font-weight: 500;
               }
               .catgirl-egg-grid {
                 display: grid;
                 grid-template-columns: repeat(5, 1fr);
-                gap: 3px;
+                gap: 2.5px;
               }
               .catgirl-egg-btn {
                 display: flex;
                 flex-direction: column;
                 align-items: center;
                 justify-content: center;
-                padding: 4px 1px;
-                background: rgba(255, 255, 255, 0.06);
-                border: 1px solid rgba(255, 255, 255, 0.09);
-                border-radius: 6px;
+                padding: 3px 1px;
+                background: rgba(255, 255, 255, 0.05);
+                border: 1px solid rgba(255, 255, 255, 0.08);
+                border-radius: 5px;
                 cursor: pointer;
                 transition: all 0.15s ease;
-                font-size: 9.5px;
+                font-size: 8.5px;
                 color: #cbd5e1;
               }
               .catgirl-egg-btn:hover {
@@ -1338,7 +1345,7 @@ async function main() {
                 background: linear-gradient(135deg, #db2777, #be185d);
                 border-color: #f9a8d4;
                 color: #ffffff;
-                box-shadow: 0 2px 8px rgba(219, 39, 119, 0.45);
+                box-shadow: 0 2px 6px rgba(219, 39, 119, 0.4);
                 font-weight: 600;
               }
               .catgirl-egg-btn:active {
@@ -1347,20 +1354,20 @@ async function main() {
 
               /* 自由调节大小滑块卡片 */
               .catgirl-slider-box {
-                padding: 8px 10px;
-                background: rgba(255, 255, 255, 0.06);
-                border-radius: 10px;
-                margin-bottom: 6px;
-                border: 1px solid rgba(255, 255, 255, 0.08);
+                padding: 5px 8px;
+                background: rgba(255, 255, 255, 0.05);
+                border-radius: 8px;
+                margin-bottom: 4px;
+                border: 1px solid rgba(255, 255, 255, 0.07);
               }
               .catgirl-slider-header {
                 display: flex;
                 justify-content: space-between;
                 align-items: center;
-                font-size: 11px;
+                font-size: 10.5px;
                 font-weight: 600;
-                margin-bottom: 6px;
-                color: #cbd5e1;
+                margin-bottom: 3px;
+                color: #e2e8f0;
               }
               .catgirl-slider-header span:first-child {
                 display: flex;
@@ -1369,35 +1376,35 @@ async function main() {
               }
               #slider-val-badge {
                 font-family: monospace;
-                font-size: 10px;
-                padding: 1px 6px;
-                border-radius: 10px;
+                font-size: 9.5px;
+                padding: 1px 5px;
+                border-radius: 8px;
                 background: #3b82f6;
                 color: #fff;
               }
               .catgirl-slider {
                 width: 100%;
-                height: 5px;
-                border-radius: 3px;
-                background: rgba(255, 255, 255, 0.25);
+                height: 4px;
+                border-radius: 2px;
+                background: rgba(255, 255, 255, 0.22);
                 outline: none;
                 cursor: pointer;
                 accent-color: #3b82f6;
-                margin: 4px 0 8px 0;
+                margin: 2px 0 5px 0;
               }
               .catgirl-preset-row {
                 display: flex;
-                gap: 4px;
+                gap: 3px;
               }
               .catgirl-preset-btn {
                 flex: 1;
                 text-align: center;
-                padding: 2.5px 0;
-                font-size: 10px;
+                padding: 2px 0;
+                font-size: 9px;
                 font-weight: 600;
-                background: rgba(255, 255, 255, 0.1);
+                background: rgba(255, 255, 255, 0.08);
                 color: #94a3b8;
-                border-radius: 6px;
+                border-radius: 5px;
                 cursor: pointer;
                 transition: all 0.15s ease;
               }
@@ -1414,13 +1421,13 @@ async function main() {
               /* 远程更新检测卡片与按钮 */
               .catgirl-update-box {
                 background: rgba(255, 255, 255, 0.05);
-                border: 1px solid rgba(255, 255, 255, 0.08);
+                border: 1px solid rgba(255, 255, 255, 0.07);
                 border-radius: 8px;
-                padding: 7px 10px;
-                margin-bottom: 6px;
+                padding: 5px 8px;
+                margin-bottom: 4px;
                 display: flex;
                 flex-direction: column;
-                gap: 6px;
+                gap: 4px;
                 box-sizing: border-box;
               }
               .catgirl-update-header {
@@ -1430,25 +1437,25 @@ async function main() {
                 width: 100%;
               }
               .catgirl-version-tag {
-                font-size: 9px;
-                padding: 1.5px 5px;
+                font-size: 8.5px;
+                padding: 1px 4px;
                 border-radius: 4px;
                 background: rgba(99, 102, 241, 0.25);
                 color: #a5b4fc;
                 font-weight: 600;
               }
               .catgirl-update-check-btn {
-                background: rgba(255, 255, 255, 0.1);
-                border: 1px solid rgba(255, 255, 255, 0.15);
+                background: rgba(255, 255, 255, 0.08);
+                border: 1px solid rgba(255, 255, 255, 0.14);
                 color: #e2e8f0;
-                font-size: 9.5px;
+                font-size: 9px;
                 font-weight: 600;
-                border-radius: 6px;
-                padding: 2.5px 7px;
+                border-radius: 5px;
+                padding: 2px 6px;
                 cursor: pointer;
                 display: flex;
                 align-items: center;
-                gap: 4px;
+                gap: 3px;
                 transition: all 0.15s ease;
               }
               .catgirl-update-check-btn:hover {
@@ -1457,24 +1464,24 @@ async function main() {
                 border-color: #60a5fa;
               }
               .catgirl-update-detail {
-                font-size: 9.5px;
-                line-height: 1.4;
+                font-size: 9px;
+                line-height: 1.35;
                 color: #cbd5e1;
                 background: rgba(0, 0, 0, 0.28);
                 border-radius: 6px;
-                padding: 6px 8px;
+                padding: 4px 6px;
                 display: flex;
                 flex-direction: column;
-                gap: 5px;
+                gap: 4px;
               }
               .catgirl-upgrade-action-btn {
                 background: linear-gradient(135deg, #10b981, #059669);
                 border: none;
                 color: #fff;
-                font-size: 10px;
+                font-size: 9.5px;
                 font-weight: 700;
-                border-radius: 6px;
-                padding: 5px 8px;
+                border-radius: 5px;
+                padding: 4px 6px;
                 cursor: pointer;
                 box-shadow: 0 2px 8px rgba(16, 185, 129, 0.35);
                 transition: all 0.2s ease;
@@ -1502,21 +1509,22 @@ async function main() {
               }
 
               .catgirl-menu-item {
-                padding: 6px 10px;
-                border-radius: 8px;
+                padding: 4px 8px;
+                border-radius: 6px;
                 cursor: pointer;
                 display: flex;
                 align-items: center;
-                gap: 8px;
+                gap: 6px;
+                font-size: 11px;
                 transition: background 0.15s ease;
               }
               .catgirl-menu-item:hover {
-                background: rgba(255, 255, 255, 0.12);
+                background: rgba(255, 255, 255, 0.1);
               }
               .catgirl-menu-divider {
                 height: 1px;
-                background: rgba(255, 255, 255, 0.1);
-                margin: 5px 2px;
+                background: rgba(255, 255, 255, 0.08);
+                margin: 3px 2px;
               }
             \`;
 
@@ -1727,28 +1735,28 @@ async function main() {
                 <!-- 待机随机彩蛋动作速览体验区 -->
                 <div class="catgirl-egg-box">
                   <div class="catgirl-egg-header">
-                    <span>✨ 待机彩蛋速览 (点击可直接体验)</span>
-                    <span style="font-size: 8.5px; opacity: 0.7;">待机自动轮换</span>
+                    <span>✨ 待机彩蛋 (点击直接体验)</span>
+                    <span style="font-size: 8px; opacity: 0.65;">自动轮换</span>
                   </div>
                   <div class="catgirl-egg-grid">
                     <div class="catgirl-egg-btn" data-egg="wave" title="👋 挥手 (热情招手打招呼)">
-                      <span style="font-size: 12px; margin-bottom: 2px;">👋</span>
+                      <span style="font-size: 11px; margin-bottom: 1px;">👋</span>
                       <span>挥手</span>
                     </div>
                     <div class="catgirl-egg-btn" data-egg="starry" title="⭐ 崇拜 (双眼冒小星星)">
-                      <span style="font-size: 12px; margin-bottom: 2px;">⭐</span>
+                      <span style="font-size: 11px; margin-bottom: 1px;">⭐</span>
                       <span>崇拜</span>
                     </div>
                     <div class="catgirl-egg-btn" data-egg="cheerful" title="✨ 开心 (笑眼盈盈开心满分)">
-                      <span style="font-size: 12px; margin-bottom: 2px;">✨</span>
+                      <span style="font-size: 11px; margin-bottom: 1px;">✨</span>
                       <span>开心</span>
                     </div>
                     <div class="catgirl-egg-btn" data-egg="shy" title="😳 害羞 (脸红扭捏可爱萌态)">
-                      <span style="font-size: 12px; margin-bottom: 2px;">😳</span>
+                      <span style="font-size: 11px; margin-bottom: 1px;">😳</span>
                       <span>害羞</span>
                     </div>
                     <div class="catgirl-egg-btn" data-egg="confused" title="❓ 困惑 (歪头摸脑勺疑问)">
-                      <span style="font-size: 12px; margin-bottom: 2px;">❓</span>
+                      <span style="font-size: 11px; margin-bottom: 1px;">❓</span>
                       <span>困惑</span>
                     </div>
                   </div>
@@ -2487,6 +2495,9 @@ async function main() {
               bubbleWrap.classList.add('show');
               void bubbleWrap.offsetWidth;
               updateBubblePosition();
+              if (menu && menu.style.display !== 'none' && typeof positionContextMenu === 'function') {
+                positionContextMenu();
+              }
               if (bubbleTimer) clearTimeout(bubbleTimer);
               bubbleTimer = setTimeout(() => {
                 bubbleWrap.classList.remove('show');
@@ -2555,6 +2566,9 @@ async function main() {
               }, 250);
 
               updateBubblePosition();
+              if (menu && menu.style.display !== 'none' && typeof positionContextMenu === 'function') {
+                positionContextMenu();
+              }
 
               if (fromSource === 'wheel' || fromSource === 'preset') {
                 showBubble(\`大小已调节为: \${percent}% (已自动记忆🐾)\`, 1200);
@@ -2733,6 +2747,9 @@ async function main() {
 
             bodyEl.addEventListener('pointerdown', (e) => {
               if (e.button !== 0) return;
+              if (menu && menu.style.display !== 'none') {
+                menu.style.display = 'none';
+              }
               isPointerDown = true;
               isActualDragging = false;
               startClientX = e.clientX;
@@ -2786,9 +2803,17 @@ async function main() {
                 dock.style.top = (clampedVisualTop - transformOffsetY) + 'px';
 
                 updateBubblePosition();
+              if (menu && menu.style.display !== 'none' && typeof positionContextMenu === 'function') {
+                positionContextMenu();
+              }
               }
             }, { signal });
-            window.addEventListener('resize', updateBubblePosition, { signal });
+            window.addEventListener('resize', () => {
+              updateBubblePosition();
+              if (menu && menu.style.display !== 'none') {
+                positionContextMenu();
+              }
+            }, { signal });
 
             function onPointerRelease(e) {
               if (!isPointerDown) return;
@@ -2810,7 +2835,50 @@ async function main() {
             window.addEventListener('pointerup', onPointerRelease, { signal });
             window.addEventListener('pointercancel', onPointerRelease, { signal });
 
-            // 6. 右键菜单呼出（实时刷新正在运行的任务列表）
+            // 智能避让定位：将右键卡片弹出在桌宠侧边，确保绝不遮挡桌宠立绘全图
+            function positionContextMenu() {
+              if (!menu || menu.style.display === 'none') return;
+              const targetEl = document.getElementById('catgirl-body') || dock;
+              if (!targetEl) return;
+              const targetRect = targetEl.getBoundingClientRect();
+              const menuWidth = menu.offsetWidth || 246;
+              const menuHeight = menu.offsetHeight || 360;
+
+              let posX = 0;
+              let posY = 0;
+
+              const spaceLeft = targetRect.left;
+              const spaceRight = window.innerWidth - targetRect.right;
+
+              if (spaceLeft >= menuWidth + 14) {
+                // 桌宠在右半屏：弹出至桌宠左侧（留 12px 呼吸间隙，确保绝不遮挡桌宠立绘全图）
+                posX = targetRect.left - menuWidth - 12;
+              } else if (spaceRight >= menuWidth + 14) {
+                // 桌宠在左半屏：弹出至桌宠右侧
+                posX = targetRect.right + 12;
+              } else {
+                // 极小视口极端情况：选择空间较大的一侧避让
+                if (spaceLeft >= spaceRight) {
+                  posX = Math.max(8, targetRect.left - menuWidth - 8);
+                } else {
+                  posX = Math.min(window.innerWidth - menuWidth - 8, targetRect.right + 8);
+                }
+              }
+
+              // 纵向定位：默认底部对齐桌宠底部，并做屏幕上下边界安全保护
+              posY = targetRect.bottom - menuHeight;
+              if (posY + menuHeight > window.innerHeight - 10) {
+                posY = window.innerHeight - menuHeight - 10;
+              }
+              if (posY < 10) {
+                posY = 10;
+              }
+
+              menu.style.left = Math.round(posX) + 'px';
+              menu.style.top = Math.round(posY) + 'px';
+            }
+
+            // 6. 右键菜单呼出（实时刷新正在运行的任务列表，智能侧边避让不遮挡立绘）
             bodyEl.addEventListener('contextmenu', (e) => {
               e.preventDefault();
               e.stopPropagation();
@@ -2820,18 +2888,8 @@ async function main() {
               syncDashboardData(true);
 
               menu.style.display = 'block';
-              const menuWidth = 262;
-              const menuHeight = menu.offsetHeight || 400;
-              let posX = e.clientX;
-              let posY = e.clientY;
-
-              if (posX + menuWidth > window.innerWidth) posX = window.innerWidth - menuWidth - 10;
-              if (posY + menuHeight > window.innerHeight) {
-                posY = Math.max(10, posY - menuHeight);
-              }
-
-              menu.style.left = posX + 'px';
-              menu.style.top = posY + 'px';
+              positionContextMenu();
+              requestAnimationFrame(positionContextMenu);
 
               // 呼出时同步数值输入与滑块数值
               const percent = Math.round(currentScale * 100);
@@ -2956,6 +3014,7 @@ async function main() {
               } finally {
                 if (icon) icon.classList.remove('catgirl-spinning');
                 if (btnText) btnText.textContent = '检查更新';
+                if (typeof positionContextMenu === 'function') positionContextMenu();
               }
             }
 
@@ -2984,6 +3043,7 @@ async function main() {
                       <div style="color: #34d399; font-weight: 600;">✅ 恭喜！一键更新配置成功</div>
                       <div style="font-size: 8.5px; opacity: 0.8;">当前已是最新版本 v\${newVer} 喵~ ✨</div>
                     \`;
+                    if (typeof positionContextMenu === 'function') positionContextMenu();
                   }
                   if (window.__antigravityCatgirl?.setState) {
                     window.__antigravityCatgirl.setState('celebrate', \`🎉 恭喜！已一键升级至最新版本 v\${newVer} 喵！✨\`, null, { force: true });
