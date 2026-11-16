@@ -1786,7 +1786,7 @@ async function main() {
                   <div style="display: flex; align-items: center; gap: 6px;">
                     <span>🚀</span>
                     <span style="font-weight: 600; font-size: 11px;">版本状态</span>
-                    <span id="pet-version-tag" class="catgirl-version-tag">v1.0.0</span>
+                    <span id="pet-version-tag" class="catgirl-version-tag">v1.1.0</span>
                   </div>
                   <button id="pet-check-update-btn" class="catgirl-update-check-btn" title="点击检查 GitHub 远程是否有新版本">
                     <span id="pet-update-icon">🔄</span>
@@ -2942,7 +2942,7 @@ async function main() {
             }
 
             // 版本检查与一键更新逻辑
-            let currentVersion = '1.0.0';
+            let currentVersion = '1.1.0';
             let latestUpdateInfo = null;
 
             async function checkPetUpdate(manual = false) {

@@ -62,12 +62,12 @@
 
 **Windows (PowerShell)**：
 ```powershell
-git clone https://github.com/<你的用户名>/antigravity-catgirl-pet.git "$env:USERPROFILE\.gemini\config\plugins\antigravity-catgirl-pet"
+git clone https://github.com/Deborah3243565/antigravity-catgirl-pet.git "$env:USERPROFILE\.gemini\config\plugins\antigravity-catgirl-pet"
 ```
 
 **macOS / Linux**：
 ```bash
-git clone https://github.com/<你的用户名>/antigravity-catgirl-pet.git ~/.gemini/config/plugins/antigravity-catgirl-pet
+git clone https://github.com/Deborah3243565/antigravity-catgirl-pet.git ~/.gemini/config/plugins/antigravity-catgirl-pet
 ```
 
 ### 2. 生效与运行
@@ -89,7 +89,7 @@ git clone https://github.com/<你的用户名>/antigravity-catgirl-pet.git ~/.ge
 | **鼠标滚轮** | 40% ~ 250% 自由无级缩放大小，并自动记忆保存配置 |
 | **鼠标左键单击** | 触发猫娘眨眼跳跃并弹出傲娇对话气泡 |
 | **双击角色 / 点击肚皮胶囊** | 展开 / 收起高科技 Token 消耗与官方额度 HUD 看板 |
-| **鼠标右键点击** | 呼出功能菜单：<br>• 查看后台运行任务并一键跳转会话<br>• 核心动作姿态即时切换<br>• 5 大待机彩蛋直接试看<br>• 缩放比例滑块与预设档位（70%、100%、130%）<br>• 置顶开关、一键归位右下角 |
+| **鼠标右键点击** | 呼出紧凑控制面板（智能侧边弹出避让，绝不遮挡桌宠立绘全图）：<br>• 查看后台运行任务并一键跳转会话<br>• 核心动作姿态即时切换<br>• 5 大待机彩蛋直接试看体验<br>• 缩放比例滑块与预设档位（70%、100%、130%、160%）<br>• 🚀 GitHub 远程版本自动检测与一键配置更新<br>• 置顶开关、一键归位右下角 |
 
 ---
 
@@ -107,12 +107,13 @@ antigravity-catgirl-pet/
 │   │   └── ...              # 崇拜、开心、害羞、困惑等全部动作
 │   └── logo.png             # 插件高清展示图标
 ├── scripts/
-│   ├── inject_pet.js        # 核心挂载器：双缓冲切帧引擎、拖拽物理、HUD看板与CDP注入
-│   └── notify.py            # 状态通知脚本：供 Hook 或 CLI 调用触发姿态切换
+│   ├── inject_pet.js        # 核心挂载器：双缓冲切帧引擎、拖拽物理、HUD看板、智能避让菜单与CDP注入
+│   ├── notify.py            # 状态通知脚本：供 Hook 或 CLI 调用触发姿态切换
+│   └── update_pet.js        # 自动更新引擎：GitHub 远程 Release/Commit 检测与一键全自动升级
 ├── sidecars/
 │   └── pet-widget/          # 辅助侧边栏与本地本地资产轻量服务
 │       ├── index.html       # 独立侧边栏 Web 界面
-│       ├── server.py        # 资产静态服务、任务感知与原生用量聚合
+│       ├── server.py        # 资产静态服务、任务感知、配置持久化与更新 API
 │       └── sidecar.json     # Sidecar 配置文件
 ├── skills/
 │   └── catgirl-pet/         # Antigravity 官方技能包定义
@@ -121,6 +122,18 @@ antigravity-catgirl-pet/
 ├── plugin.json              # Antigravity 插件清单配置
 └── README.md                # 项目文档
 ```
+
+---
+
+## 🔖 版本更新记录 (Changelog)
+
+### v1.1.0 (Current)
+- 🌟 **持久缩放与配置记忆**：支持多路径磁盘持久化，重新打开 Antigravity 始终精准还原所设大小（默认推荐 130% 放大比例）；
+- 🚀 **GitHub 自动更新与一键配置**：启动静默检查远程新版本与提交，右键菜单支持一键拉取最新代码并热重载生效，零命令行门槛；
+- 📐 **控制菜单紧凑化与智能侧边弹出避让**：右键面板采用高科技紧凑排版，自动弹出在桌宠侧边（左/右侧保留 12px 呼吸间隙），**绝不遮挡桌宠立绘全图**，图片细节与面板选项清晰可见。
+
+### v1.0.0
+- 🎉 首次正式开源发布：支持 10 款 60fps 透明 WebM 细腻动作、双缓冲无黑屏切帧引擎、原生配额看板与 QQ 弹弹果冻拖拽物理。
 
 ---
 
