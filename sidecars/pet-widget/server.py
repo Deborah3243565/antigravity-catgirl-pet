@@ -1,4 +1,5 @@
 import os
+import re
 import sys
 import json
 import time
@@ -10,7 +11,8 @@ import subprocess
 import urllib.parse
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from socketserver import ThreadingMixIn
-from datetime import datetime
+from datetime import datetime, timedelta
+from collections import deque
 
 # 历史用量缓存（8秒刷新一次，避免高频全盘扫描）
 _history_cache = {
@@ -19,6 +21,13 @@ _history_cache = {
     "month": "0 tok",
     "cacheRate": "95.0%"
 }
+
+# 全量按日/按模型分析缓存（20秒刷新一次，支持手动 force 刷新）
+_analytics_cache = {
+    "last_computed": 0,
+    "data": None
+}
+_analytics_lock = threading.Lock()
 
 # 实时任务与状态追踪器
 _task_tracker = {
@@ -154,7 +163,183 @@ def poll_running_tasks():
         _task_tracker["last_poll"] = now_ts
         return list(new_running_map.values())
 
-def get_native_stats(override_pct=None):
+_MODEL_TAIL_RE = re.compile(rb'(?:Gemini [0-9][^\x00-\x1f"]{2,35}|Claude [^\x00-\x1f"]{2,35}|GPT[^\x00-\x1f"]{2,35})')
+_STEP_IDX_RE = re.compile(rb'last_step_index[^\d]{1,10}(\d+)')
+
+def _clean_model_name(raw, keep_tier=False):
+    s = (raw or "").strip()
+    if not s:
+        return "Gemini 3.8 Flash"
+    if "GPT_OSS_120B" in s.upper():
+        return "GPT-OSS 120B"
+    if not keep_tier:
+        s = re.sub(r'\s*\((?:High|Medium|Low|Minimal|Thinking)\)\s*$', '', s, flags=re.I).strip()
+    return s
+
+def _load_conv_step_models(cid, keep_tier=False):
+    step_models = []
+    if not cid or cid == "none":
+        return step_models
+    conv_dir = os.path.join(os.environ.get("USERPROFILE", ""), ".gemini", "antigravity", "conversations")
+    dbp = os.path.join(conv_dir, cid + ".db")
+    if not os.path.isfile(dbp):
+        return step_models
+    try:
+        conn = sqlite3.connect(f"file:{dbp}?mode=ro", uri=True, timeout=1.5)
+        rows = conn.execute("SELECT idx, substr(data, max(1, length(data)-750)) FROM gen_metadata ORDER BY idx ASC").fetchall()
+        conn.close()
+        for idx, tail in rows:
+            if not tail:
+                continue
+            if isinstance(tail, str):
+                tail = tail.encode("latin1", errors="ignore")
+            m_mod = _MODEL_TAIL_RE.findall(tail)
+            if m_mod:
+                m_step = _STEP_IDX_RE.search(tail)
+                s_idx = int(m_step.group(1)) if m_step else idx * 2
+                step_models.append((s_idx, _clean_model_name(m_mod[-1].decode("utf-8", "ignore"), keep_tier=keep_tier)))
+        step_models.sort(key=lambda x: x[0])
+    except Exception:
+        pass
+    return step_models
+
+def get_analytics_data(force=False):
+    now_ts = time.time()
+    with _analytics_lock:
+        if not force and _analytics_cache["data"] is not None and (now_ts - _analytics_cache["last_computed"] < 20.0):
+            return _analytics_cache["data"]
+
+    brain_dir = os.path.join(os.environ.get("USERPROFILE", ""), ".gemini", "antigravity", "brain")
+    now = datetime.now()
+    today_str = now.strftime("%Y-%m-%d")
+    week_start_dt = (now - timedelta(days=now.weekday())).replace(hour=0, minute=0, second=0, microsecond=0)
+    week_start_ts = week_start_dt.timestamp()
+    today_start_ts = now.replace(hour=0, minute=0, second=0, microsecond=0).timestamp()
+    month_start_ts = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0).timestamp()
+
+    daily = {}
+    model_totals = {}
+    years_set = {now.year}
+
+    today_tok = today_req = 0
+    week_tok = week_req = 0
+    month_tok = month_req = 0
+    all_tok = all_req = 0
+
+    if os.path.exists(brain_dir):
+        try:
+            entries = [e for e in os.scandir(brain_dir) if e.is_dir()]
+        except Exception:
+            entries = []
+
+        for entry in entries:
+            tp = os.path.join(entry.path, ".system_generated", "logs", "transcript.jsonl")
+            if not os.path.isfile(tp):
+                continue
+            cid = entry.name
+            step_models = _load_conv_step_models(cid, keep_tier=False)
+            default_mod = step_models[-1][1] if step_models else "Gemini 3.8 Flash"
+            sm_i = 0
+
+            try:
+                mtime = os.path.getmtime(tp)
+                with open(tp, "r", encoding="utf-8", errors="ignore") as f:
+                    for line in f:
+                        if "PLANNER_RESPONSE" not in line:
+                            continue
+                        try:
+                            d = json.loads(line)
+                        except Exception:
+                            continue
+                        inp = int(d.get("input_tokens", 0) or 0)
+                        cache_r = int(d.get("cache_read_tokens", 0) or 0)
+                        cache_w = int(d.get("cache_creation_tokens", 0) or 0)
+                        out = int(d.get("output_tokens", 0) or 0)
+                        tot = inp + cache_r + cache_w + out
+                        if tot <= 0:
+                            continue
+
+                        s_idx = int(d.get("step_index", 0) or 0)
+                        while sm_i + 1 < len(step_models) and step_models[sm_i + 1][0] <= s_idx:
+                            sm_i += 1
+                        mod = step_models[sm_i][1] if step_models else default_mod
+
+                        ca = d.get("created_at")
+                        if ca:
+                            try:
+                                dt = datetime.fromisoformat(ca.replace("Z", "+00:00")).astimezone()
+                                step_ts = dt.timestamp()
+                                day_key = dt.strftime("%Y-%m-%d")
+                                years_set.add(dt.year)
+                            except Exception:
+                                dt = datetime.fromtimestamp(mtime)
+                                step_ts = mtime
+                                day_key = dt.strftime("%Y-%m-%d")
+                        else:
+                            dt = datetime.fromtimestamp(mtime)
+                            step_ts = mtime
+                            day_key = dt.strftime("%Y-%m-%d")
+
+                        all_tok += tot
+                        all_req += 1
+                        if step_ts >= month_start_ts:
+                            month_tok += tot
+                            month_req += 1
+                        if step_ts >= week_start_ts:
+                            week_tok += tot
+                            week_req += 1
+                        if step_ts >= today_start_ts:
+                            today_tok += tot
+                            today_req += 1
+
+                        if day_key not in daily:
+                            daily[day_key] = {
+                                "total": 0, "requests": 0,
+                                "input": 0, "cacheRead": 0, "cacheWrite": 0, "output": 0,
+                                "byModel": {}
+                            }
+                        dd = daily[day_key]
+                        dd["total"] += tot
+                        dd["requests"] += 1
+                        dd["input"] += inp
+                        dd["cacheRead"] += cache_r
+                        dd["cacheWrite"] += cache_w
+                        dd["output"] += out
+
+                        if mod not in dd["byModel"]:
+                            dd["byModel"][mod] = {"total": 0, "requests": 0, "input": 0, "cacheRead": 0, "cacheWrite": 0, "output": 0}
+                        dm = dd["byModel"][mod]
+                        dm["total"] += tot
+                        dm["requests"] += 1
+                        dm["input"] += inp
+                        dm["cacheRead"] += cache_r
+                        dm["cacheWrite"] += cache_w
+                        dm["output"] += out
+
+                        model_totals[mod] = model_totals.get(mod, 0) + tot
+            except Exception:
+                pass
+
+    models_sorted = sorted(model_totals.keys(), key=lambda m: model_totals[m], reverse=True)
+    result = {
+        "generatedAt": now.strftime("%Y-%m-%d %H:%M:%S"),
+        "todayStr": today_str,
+        "summary": {
+            "today": today_tok, "todayRequests": today_req,
+            "week": week_tok, "weekRequests": week_req,
+            "month": month_tok, "monthRequests": month_req,
+            "allTime": all_tok, "allTimeRequests": all_req
+        },
+        "models": models_sorted,
+        "years": sorted(years_set, reverse=True),
+        "daily": daily
+    }
+    with _analytics_lock:
+        _analytics_cache["data"] = result
+        _analytics_cache["last_computed"] = time.time()
+    return result
+
+def get_native_stats(override_pct=None, conversation_id=None):
     now_ts = time.time()
     brain_dir = os.path.join(os.environ.get("USERPROFILE", ""), ".gemini", "antigravity", "brain")
 
@@ -163,6 +348,9 @@ def get_native_stats(override_pct=None):
 
     ctx_tokens = 0
     ctx_pct = 0
+    conv_total_tokens = 0
+    conv_requests = 0
+    real_tps = "--"
     model_name = "Gemini"
 
     if os.path.exists(brain_dir):
@@ -176,31 +364,73 @@ def get_native_stats(override_pct=None):
         except Exception:
             pass
 
-        # 查找最新活跃会话提取当前上下文占用
-        if transcripts:
-            latest = max(transcripts, key=os.path.getmtime)
+        # 确定目标会话日志：优先精确匹配前端当前所在对话框的 conversation_id
+        target_transcript = None
+        if conversation_id == "none":
+            target_transcript = None
+        elif conversation_id:
+            cand = os.path.join(brain_dir, conversation_id, ".system_generated", "logs", "transcript.jsonl")
+            if os.path.isfile(cand):
+                target_transcript = cand
+        elif transcripts:
+            target_transcript = max(transcripts, key=os.path.getmtime)
+
+        # 提取目标会话当前上下文占用与真实生成速率 (tok/s)
+        real_tps = "--"
+        if target_transcript:
+            # 获取当前对话最新使用的具体模型名
             try:
-                fsize = os.path.getsize(latest)
-                with open(latest, "r", encoding="utf-8", errors="ignore") as f:
-                    if fsize > 32768:
-                        f.seek(fsize - 32768)
-                    lines = f.readlines()
-                for line in reversed(lines):
-                    if "PLANNER_RESPONSE" in line:
+                target_cid = os.path.basename(os.path.dirname(os.path.dirname(os.path.dirname(target_transcript))))
+                c_mods = _load_conv_step_models(target_cid, keep_tier=True)
+                if c_mods:
+                    model_name = c_mods[-1][1]
+            except Exception:
+                pass
+            try:
+                # 全量扫描当前对话框日志，统计完整累计 Token 总量、请求数，同时提取末尾上下文与生成速率
+                tail_lines = deque(maxlen=60)
+                with open(target_transcript, "r", encoding="utf-8", errors="ignore") as f:
+                    for line in f:
+                        tail_lines.append(line)
+                        if "PLANNER_RESPONSE" in line:
+                            try:
+                                d = json.loads(line)
+                                if d.get("type") == "PLANNER_RESPONSE":
+                                    inp = int(d.get("input_tokens", 0) or 0)
+                                    cache_r = int(d.get("cache_read_tokens", 0) or 0)
+                                    cache_w = int(d.get("cache_creation_tokens", 0) or 0)
+                                    out = int(d.get("output_tokens", 0) or 0)
+                                    conv_total_tokens += inp + cache_r + cache_w + out
+                                    conv_requests += 1
+                                    ctx_tokens = inp + cache_r
+                            except Exception:
+                                pass
+                ctx_pct = min(100, max(1, round(ctx_tokens / 262144 * 100))) if ctx_tokens > 0 else 0
+                # 基于最近步骤的 output_tokens 与时间差测算真实平均生成速率
+                prev_ts = None
+                tot_out = 0
+                tot_dt = 0.0
+                for line in tail_lines:
+                    try:
                         d = json.loads(line)
-                        inp = d.get("input_tokens", 0)
-                        cache = d.get("cache_read_tokens", 0)
-                        ctx_tokens = inp + cache
-                        ctx_pct = min(100, max(1, round(ctx_tokens / 262144 * 100)))
-                        break
+                        ca = d.get("created_at")
+                        ts = datetime.fromisoformat(ca.replace("Z", "+00:00")).timestamp() if ca else None
+                        if d.get("type") == "PLANNER_RESPONSE" and d.get("output_tokens") and prev_ts and ts:
+                            dt = ts - prev_ts
+                            if 1.0 <= dt <= 120.0:
+                                tot_out += d["output_tokens"]
+                                tot_dt += dt
+                        if ts:
+                            prev_ts = ts
+                    except Exception:
+                        pass
+                if tot_dt > 0 and tot_out > 0:
+                    real_tps = f"{round(tot_out / tot_dt, 1)} tok/s"
             except Exception:
                 pass
 
-    if override_pct is not None and 0 < override_pct <= 100:
-        ctx_pct = override_pct
-
-        # 汇总今日与本月历史用量（每 8 秒刷新一次缓存）
-        if now_ts - _history_cache["last_computed"] >= 8.0:
+        # 汇总今日与本月历史用量（每 8 秒刷新一次缓存，按每条记录 created_at 精确归档）
+        if transcripts and now_ts - _history_cache["last_computed"] >= 8.0:
             now = datetime.now()
             today_start = now.replace(hour=0, minute=0, second=0, microsecond=0).timestamp()
             month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0).timestamp()
@@ -222,8 +452,17 @@ def get_native_stats(override_pct=None):
                                     cache = d.get("cache_read_tokens", 0)
                                     out = d.get("output_tokens", 0)
                                     step_total = inp + cache + out
-                                    month_tokens += step_total
-                                    if mtime >= today_start:
+                                    ca = d.get("created_at")
+                                    if ca:
+                                        try:
+                                            step_ts = datetime.fromisoformat(ca.replace("Z", "+00:00")).timestamp()
+                                        except Exception:
+                                            step_ts = mtime
+                                    else:
+                                        step_ts = mtime
+                                    if step_ts >= month_start:
+                                        month_tokens += step_total
+                                    if step_ts >= today_start:
                                         today_input += inp
                                         today_cache += cache
                                         today_output += out
@@ -245,10 +484,20 @@ def get_native_stats(override_pct=None):
             _history_cache["cacheRate"] = f"{cache_rate}%"
             _history_cache["last_computed"] = now_ts
 
+    if override_pct is not None and 0 < override_pct <= 100:
+        ctx_pct = override_pct
+
     def fmt_ctx(n):
         if n >= 1_000:
             return f"{n / 1_000:.1f}K"
         return str(n)
+
+    def fmt_tok_total(n):
+        if n >= 1_000_000:
+            return f"{n / 1_000_000:.1f}M tok"
+        elif n >= 1_000:
+            return f"{n / 1_000:.1f}K tok"
+        return f"{n} tok"
 
     # 2. 严格按照状态机规则计算当前权威自动姿态 (autoState)
     # 规则：
@@ -289,7 +538,10 @@ def get_native_stats(override_pct=None):
         "today": _history_cache["today"],
         "month": _history_cache["month"],
         "cacheRate": _history_cache["cacheRate"],
-        "tps": "118.4 tok/s",
+        "convTotal": fmt_tok_total(conv_total_tokens),
+        "convTotalRaw": conv_total_tokens,
+        "convRequests": conv_requests,
+        "tps": real_tps,
         "fiveBalance": "健康充裕",
         "fiveCountdown": "原生自适应",
         "weekBalance": "正常",
@@ -535,16 +787,45 @@ class PetRequestHandler(BaseHTTPRequestHandler):
         # 3.5 原生统计与实时任务接口
         if clean_path == "/api/stats":
             override_pct = None
+            conversation_id = None
             try:
                 parsed_qs = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
                 if "host_ctx_pct" in parsed_qs:
                     val = int(parsed_qs["host_ctx_pct"][0])
                     if 0 < val <= 100:
                         override_pct = val
+                if "conversation_id" in parsed_qs and parsed_qs["conversation_id"]:
+                    raw_cid = parsed_qs["conversation_id"][0].strip()
+                    if raw_cid == "none" or re.fullmatch(r"[0-9a-zA-Z_-]{8,64}", raw_cid):
+                        conversation_id = raw_cid
             except Exception:
                 pass
-            stats = get_native_stats(override_pct=override_pct)
+            stats = get_native_stats(override_pct=override_pct, conversation_id=conversation_id)
             payload = json.dumps(stats, ensure_ascii=False).encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Content-Length", str(len(payload)))
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+            self.send_header("Access-Control-Allow-Headers", "*")
+            self.send_header("Access-Control-Allow-Private-Network", "true")
+            self.send_header("Connection", "close")
+            self.end_headers()
+            self.wfile.write(payload)
+            self.wfile.flush()
+            self.close_connection = True
+            return
+
+        # 3.6 全量按日/按模型用量统计分析接口（支持活动热力图与按模型柱状图明细）
+        if clean_path == "/api/analytics":
+            force_refresh = False
+            try:
+                parsed_qs = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
+                force_refresh = parsed_qs.get("refresh", ["0"])[0] in ("1", "true", "yes")
+            except Exception:
+                pass
+            analytics = get_analytics_data(force=force_refresh)
+            payload = json.dumps(analytics, ensure_ascii=False).encode("utf-8")
             self.send_response(200)
             self.send_header("Content-Type", "application/json; charset=utf-8")
             self.send_header("Content-Length", str(len(payload)))

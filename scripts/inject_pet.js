@@ -211,6 +211,8 @@ async function main() {
             if (oldMenu) oldMenu.remove();
             const oldHud = document.getElementById('catgirl-dashboard-hud');
             if (oldHud) oldHud.remove();
+            const oldModal = document.getElementById('catgirl-analytics-modal');
+            if (oldModal) oldModal.remove();
 
             const mountAbortController = new AbortController();
             const { signal } = mountAbortController;
@@ -1069,6 +1071,518 @@ async function main() {
                 transform: translateY(-1px);
                 box-shadow: 0 6px 16px rgba(37, 99, 235, 0.5);
               }
+              .hud-analytics-entry-btn {
+                background: rgba(59, 130, 246, 0.16);
+                border: 1px solid rgba(96, 165, 250, 0.36);
+                color: #93c5fd;
+                font-size: 9px;
+                font-weight: 600;
+                padding: 1.5px 6px;
+                border-radius: 999px;
+                cursor: pointer;
+                display: inline-flex;
+                align-items: center;
+                gap: 3px;
+                transition: all 0.15s ease;
+              }
+              .hud-analytics-entry-btn:hover {
+                background: rgba(59, 130, 246, 0.34);
+                border-color: #60a5fa;
+                color: #ffffff;
+                transform: translateY(-0.5px);
+              }
+              .hud-quota-switcher {
+                display: flex;
+                align-items: center;
+                gap: 3px;
+                margin-bottom: 6px;
+                flex-wrap: wrap;
+              }
+              .hud-quota-tab {
+                background: rgba(255, 255, 255, 0.05);
+                border: 1px solid rgba(255, 255, 255, 0.1);
+                color: #94a3b8;
+                font-size: 8.5px;
+                font-weight: 600;
+                padding: 1.5px 5px;
+                border-radius: 5px;
+                cursor: pointer;
+                transition: all 0.14s ease;
+              }
+              .hud-quota-tab:hover {
+                background: rgba(56, 189, 248, 0.15);
+                color: #e2e8f0;
+              }
+              .hud-quota-tab.active {
+                background: rgba(56, 189, 248, 0.24);
+                border-color: rgba(56, 189, 248, 0.6);
+                color: #7dd3fc;
+              }
+
+              /* 全量用量统计与全模型额度中心弹窗（独立于宠物缩放） */
+              #catgirl-analytics-modal {
+                position: fixed;
+                inset: 0;
+                z-index: 100000010;
+                background: rgba(6, 10, 20, 0.72);
+                backdrop-filter: blur(8px);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Microsoft YaHei", sans-serif;
+                color: #e2e8f0;
+                padding: 18px;
+                box-sizing: border-box;
+              }
+              .cg-modal-card {
+                width: min(940px, 94vw);
+                max-height: min(690px, 90vh);
+                background: #141824;
+                border: 1px solid rgba(148, 163, 184, 0.2);
+                border-radius: 16px;
+                box-shadow: 0 24px 64px rgba(0, 0, 0, 0.72);
+                display: flex;
+                flex-direction: column;
+                overflow: hidden;
+              }
+              .cg-modal-head {
+                display: flex;
+                align-items: flex-start;
+                justify-content: space-between;
+                padding: 16px 20px 10px;
+                border-bottom: 1px solid rgba(148, 163, 184, 0.12);
+              }
+              .cg-modal-eyebrow {
+                font-size: 10px;
+                letter-spacing: 1px;
+                color: #94a3b8;
+                font-weight: 600;
+              }
+              .cg-modal-title {
+                font-size: 20px;
+                font-weight: 700;
+                color: #f8fafc;
+                margin-top: 2px;
+              }
+              .cg-modal-sub {
+                font-size: 11px;
+                color: #94a3b8;
+                margin-top: 3px;
+                display: flex;
+                align-items: center;
+                gap: 6px;
+              }
+              .cg-dot-green {
+                width: 6px;
+                height: 6px;
+                border-radius: 50%;
+                background: #10b981;
+                display: inline-block;
+              }
+              .cg-head-actions {
+                display: flex;
+                align-items: center;
+                gap: 6px;
+              }
+              .cg-icon-btn {
+                background: rgba(255, 255, 255, 0.05);
+                border: 1px solid rgba(148, 163, 184, 0.22);
+                color: #cbd5e1;
+                border-radius: 7px;
+                height: 28px;
+                min-width: 28px;
+                padding: 0 8px;
+                font-size: 11.5px;
+                font-weight: 600;
+                cursor: pointer;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                transition: all 0.15s ease;
+              }
+              .cg-icon-btn:hover {
+                background: rgba(255, 255, 255, 0.12);
+                color: #fff;
+              }
+              .cg-tabs {
+                display: flex;
+                gap: 20px;
+                padding: 0 20px;
+                border-bottom: 1px solid rgba(148, 163, 184, 0.12);
+              }
+              .cg-tab-btn {
+                background: transparent;
+                border: none;
+                border-bottom: 2px solid transparent;
+                color: #94a3b8;
+                font-size: 12.5px;
+                font-weight: 600;
+                padding: 10px 2px;
+                cursor: pointer;
+                transition: all 0.15s ease;
+              }
+              .cg-tab-btn:hover {
+                color: #e2e8f0;
+              }
+              .cg-tab-btn.active {
+                color: #f8fafc;
+                border-bottom-color: #6366f1;
+              }
+              .cg-modal-body {
+                padding: 14px 20px 18px;
+                overflow-y: auto;
+                display: flex;
+                flex-direction: column;
+                gap: 14px;
+              }
+              .cg-summary-grid {
+                display: grid;
+                grid-template-columns: repeat(4, 1fr);
+                background: rgba(255, 255, 255, 0.03);
+                border: 1px solid rgba(148, 163, 184, 0.16);
+                border-radius: 12px;
+                padding: 12px 0;
+              }
+              .cg-summary-cell {
+                padding: 0 18px;
+                border-right: 1px solid rgba(148, 163, 184, 0.12);
+              }
+              .cg-summary-cell:last-child {
+                border-right: none;
+              }
+              .cg-summary-label {
+                font-size: 11px;
+                color: #94a3b8;
+                margin-bottom: 4px;
+              }
+              .cg-summary-val {
+                font-size: 22px;
+                font-weight: 700;
+                color: #f8fafc;
+                font-family: ui-sans-serif, system-ui, sans-serif;
+              }
+              .cg-summary-unit {
+                font-size: 11px;
+                font-weight: 500;
+                color: #94a3b8;
+                margin-left: 4px;
+              }
+              .cg-panel {
+                background: rgba(255, 255, 255, 0.025);
+                border: 1px solid rgba(148, 163, 184, 0.15);
+                border-radius: 12px;
+                padding: 14px 16px;
+              }
+              .cg-panel-head {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                margin-bottom: 10px;
+                gap: 10px;
+                flex-wrap: wrap;
+              }
+              .cg-panel-title {
+                font-size: 14px;
+                font-weight: 700;
+                color: #f8fafc;
+              }
+              .cg-panel-sub {
+                font-size: 11.5px;
+                color: #94a3b8;
+                margin-top: 2px;
+              }
+              .cg-seg-group {
+                display: inline-flex;
+                background: rgba(15, 23, 42, 0.7);
+                border: 1px solid rgba(148, 163, 184, 0.2);
+                border-radius: 8px;
+                overflow: hidden;
+              }
+              .cg-seg-btn {
+                background: transparent;
+                border: none;
+                color: #94a3b8;
+                font-size: 11.5px;
+                font-weight: 600;
+                padding: 5px 11px;
+                cursor: pointer;
+              }
+              .cg-seg-btn.active {
+                background: rgba(255, 255, 255, 0.12);
+                color: #fff;
+              }
+              .cg-select {
+                background: rgba(15, 23, 42, 0.8);
+                border: 1px solid rgba(148, 163, 184, 0.22);
+                color: #e2e8f0;
+                font-size: 11.5px;
+                font-weight: 600;
+                border-radius: 8px;
+                padding: 4px 8px;
+                cursor: pointer;
+              }
+              .cg-heatmap-scroll {
+                overflow-x: auto;
+                padding-bottom: 4px;
+              }
+              .cg-heatmap-months {
+                display: grid;
+                margin-left: 24px;
+                font-size: 10.5px;
+                color: #94a3b8;
+                margin-bottom: 4px;
+              }
+              .cg-heatmap-main {
+                display: flex;
+                gap: 6px;
+                align-items: flex-start;
+              }
+              .cg-heatmap-days {
+                display: grid;
+                grid-template-rows: repeat(7, 11px);
+                gap: 3px;
+                font-size: 10px;
+                color: #64748b;
+                width: 18px;
+                text-align: right;
+              }
+              .cg-heatmap-grid {
+                display: grid;
+                grid-auto-flow: column;
+                grid-template-rows: repeat(7, 11px);
+                gap: 3px;
+              }
+              .cg-heat-cell {
+                width: 11px;
+                height: 11px;
+                border-radius: 2.5px;
+                background: rgba(255, 255, 255, 0.06);
+                cursor: pointer;
+                transition: transform 0.1s ease, outline 0.1s ease;
+              }
+              .cg-heat-cell:hover {
+                transform: scale(1.22);
+                outline: 1.5px solid #93c5fd;
+              }
+              .cg-heat-cell.selected {
+                outline: 1.5px solid #f8fafc;
+              }
+              .cg-heat-l1 { background: #313b5e; }
+              .cg-heat-l2 { background: #4b5ba3; }
+              .cg-heat-l3 { background: #667eea; }
+              .cg-heat-l4 { background: #8da2fb; }
+              .cg-heatmap-foot {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                font-size: 11px;
+                color: #94a3b8;
+                margin-top: 8px;
+              }
+              .cg-selected-banner {
+                background: rgba(255, 255, 255, 0.03);
+                border: 1px solid rgba(148, 163, 184, 0.16);
+                border-radius: 10px;
+                padding: 10px 14px;
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+              }
+              .cg-link-btn {
+                background: transparent;
+                border: none;
+                color: #818cf8;
+                font-size: 12px;
+                font-weight: 600;
+                cursor: pointer;
+              }
+              .cg-link-btn:hover {
+                color: #a5b4fc;
+                text-decoration: underline;
+              }
+              .cg-legend {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 12px;
+                margin-bottom: 10px;
+              }
+              .cg-legend-item {
+                display: inline-flex;
+                align-items: center;
+                gap: 6px;
+                font-size: 11.5px;
+                color: #cbd5e1;
+                cursor: pointer;
+                padding: 2px 6px;
+                border-radius: 6px;
+                transition: opacity 0.15s;
+              }
+              .cg-legend-item.muted {
+                opacity: 0.35;
+              }
+              .cg-legend-dot {
+                width: 8px;
+                height: 8px;
+                border-radius: 50%;
+                display: inline-block;
+              }
+              .cg-chart-area {
+                position: relative;
+                height: 190px;
+                display: flex;
+                flex-direction: column;
+                margin-top: 4px;
+              }
+              .cg-chart-plot {
+                position: relative;
+                flex: 1;
+                margin-left: 46px;
+                border-bottom: 1px solid rgba(148, 163, 184, 0.22);
+                display: flex;
+                align-items: flex-end;
+                gap: 4px;
+                padding: 0 4px;
+              }
+              .cg-y-grid {
+                position: absolute;
+                left: -46px;
+                right: 0;
+                border-top: 1px dashed rgba(148, 163, 184, 0.12);
+                pointer-events: none;
+              }
+              .cg-y-label {
+                position: absolute;
+                top: -7px;
+                left: 0;
+                width: 40px;
+                text-align: right;
+                font-size: 10px;
+                color: #64748b;
+              }
+              .cg-bar-col {
+                flex: 1;
+                height: 100%;
+                display: flex;
+                flex-direction: column;
+                justify-content: flex-end;
+                align-items: center;
+                cursor: pointer;
+                position: relative;
+                z-index: 2;
+              }
+              .cg-bar-stack {
+                width: min(22px, 78%);
+                display: flex;
+                flex-direction: column-reverse;
+                border-radius: 3px 3px 0 0;
+                overflow: hidden;
+                transition: filter 0.15s;
+              }
+              .cg-bar-col:hover .cg-bar-stack {
+                filter: brightness(1.2);
+              }
+              .cg-x-axis {
+                margin-left: 46px;
+                display: flex;
+                padding: 5px 4px 0;
+                font-size: 10px;
+                color: #64748b;
+              }
+              .cg-x-tick {
+                flex: 1;
+                text-align: center;
+                white-space: nowrap;
+              }
+              .cg-table {
+                width: 100%;
+                border-collapse: collapse;
+                font-size: 12px;
+                margin-top: 6px;
+              }
+              .cg-table th {
+                text-align: right;
+                color: #94a3b8;
+                font-weight: 500;
+                font-size: 11px;
+                padding: 8px 10px;
+                border-bottom: 1px solid rgba(148, 163, 184, 0.16);
+              }
+              .cg-table th:first-child {
+                text-align: left;
+              }
+              .cg-table td {
+                text-align: right;
+                padding: 9px 10px;
+                border-bottom: 1px solid rgba(148, 163, 184, 0.08);
+                color: #e2e8f0;
+                font-family: ui-monospace, SFMono-Regular, monospace;
+              }
+              .cg-table td:first-child {
+                text-align: left;
+                font-family: inherit;
+                font-weight: 600;
+              }
+              .cg-quota-grid {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+                gap: 12px;
+              }
+              .cg-quota-card {
+                background: rgba(255, 255, 255, 0.03);
+                border: 1px solid rgba(148, 163, 184, 0.18);
+                border-radius: 12px;
+                padding: 14px 16px;
+                display: flex;
+                flex-direction: column;
+                gap: 10px;
+              }
+              .cg-quota-card.is-active-pool {
+                border-color: rgba(56, 189, 248, 0.55);
+                box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.2);
+              }
+              .cg-quota-card-head {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 8px;
+              }
+              .cg-quota-name {
+                font-size: 14px;
+                font-weight: 700;
+                color: #f8fafc;
+              }
+              .cg-quota-desc {
+                font-size: 11px;
+                color: #94a3b8;
+                line-height: 1.4;
+              }
+              .cg-quota-row {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                padding: 8px 10px;
+                background: rgba(15, 23, 42, 0.55);
+                border-radius: 9px;
+                border: 1px solid rgba(148, 163, 184, 0.1);
+              }
+              .cg-quota-ring-wrap {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+              }
+              .cg-tooltip {
+                position: fixed;
+                z-index: 100000030;
+                pointer-events: none;
+                background: rgba(15, 23, 42, 0.96);
+                border: 1px solid rgba(148, 163, 184, 0.3);
+                border-radius: 8px;
+                padding: 7px 10px;
+                font-size: 11px;
+                color: #f1f5f9;
+                box-shadow: 0 8px 24px rgba(0, 0, 0, 0.55);
+                display: none;
+              }
 
               /* 右键原生级卡片菜单（紧凑精致、智能避让绝不遮挡桌宠立绘全图） */
               #antigravity-catgirl-contextmenu {
@@ -1608,6 +2122,13 @@ async function main() {
                     </div>
                     <span class="hud-subtle" id="live-hud-quota-status" style="color: #38bdf8; font-size: 10px;">充裕健康</span>
                   </div>
+                  <div class="hud-quota-switcher" id="live-hud-quota-switcher">
+                    <button class="hud-quota-tab active" data-pool="auto" title="自动跟随当前对话模型">⚡自动</button>
+                    <button class="hud-quota-tab" data-pool="gemini" title="查看 Gemini 模型额度">Gemini</button>
+                    <button class="hud-quota-tab" data-pool="3p" title="查看 Claude / GPT 额度">Claude/GPT</button>
+                    <button class="hud-quota-tab" data-pool="gemini-argon-wtu" title="查看 Gemini 4 Argon 额度">Argon</button>
+                    <button class="hud-quota-tab" id="live-hud-all-quotas-btn" style="margin-left:auto; color:#93c5fd;" title="同时查看全部模型池额度">全部 ›</button>
+                  </div>
                   <div class="hud-gauge-row">
                     <div class="hud-gauge-info">
                       <span class="hud-label">5小时额度</span>
@@ -1654,6 +2175,10 @@ async function main() {
                 <div class="hud-section" style="padding-bottom: 2px;">
                   <div class="hud-section-title">
                     <span>📊 Token 消耗</span>
+                    <button id="live-hud-open-analytics-btn" class="hud-analytics-entry-btn" title="打开活动热力图、按模型用量统计与全模型额度">
+                      <span>📈 用量详情 &amp; 全额度</span>
+                      <span>›</span>
+                    </button>
                   </div>
                   <div class="hud-grid">
                     <div class="hud-metric-card">
@@ -1671,6 +2196,10 @@ async function main() {
                     <div class="hud-metric-card">
                       <span class="hud-metric-label">缓存命中</span>
                       <span class="hud-metric-val" id="live-hud-cache-val">--</span>
+                    </div>
+                    <div class="hud-metric-card" style="grid-column: span 2; flex-direction: row; align-items: center; justify-content: space-between; padding: 5px 9px;" title="当前所在对话框从开始至今累计消耗的 Token 总量">
+                      <span class="hud-metric-label">本对话累计总量 <span id="live-hud-conv-req" style="opacity: 0.72; font-size: 9px;"></span></span>
+                      <span class="hud-metric-val" id="live-hud-conv-total-val" style="color: #7dd3fc;">--</span>
                     </div>
                   </div>
                 </div>
@@ -1786,7 +2315,7 @@ async function main() {
                   <div style="display: flex; align-items: center; gap: 6px;">
                     <span>🚀</span>
                     <span style="font-weight: 600; font-size: 11px;">版本状态</span>
-                    <span id="pet-version-tag" class="catgirl-version-tag">v1.1.0</span>
+                    <span id="pet-version-tag" class="catgirl-version-tag">v1.2.0</span>
                   </div>
                   <button id="pet-check-update-btn" class="catgirl-update-check-btn" title="点击检查 GitHub 远程是否有新版本">
                     <span id="pet-update-icon">🔄</span>
@@ -2942,7 +3471,7 @@ async function main() {
             }
 
             // 版本检查与一键更新逻辑
-            let currentVersion = '1.1.0';
+            let currentVersion = '1.2.0';
             let latestUpdateInfo = null;
 
             async function checkPetUpdate(manual = false) {
@@ -3248,6 +3777,8 @@ async function main() {
             
             // 实时模型与官方配额管理系统（根据输入框当前实时模型自动对齐配额池，完全脱离外部 Dashboard 组绑定）
             let hostQuotaCache = { data: null, lastGroup: '', lastFetched: 0 };
+            let allHostQuotasCache = { groups: null, lastFetched: 0 };
+            if (!window.__catgirl_quota_preview_group) window.__catgirl_quota_preview_group = 'auto';
 
             // 1. 深度动态感知 Antigravity 输入框/对话当前实时生效的具体模型
             function detectActiveComposerModel() {
@@ -3255,7 +3786,8 @@ async function main() {
                 // 优先从 Antigravity 宿主底部输入框旁的模型选择按钮（带有 aria-label="Select model, current: ..."）提取
                 const composerBtn = Array.from(document.querySelectorAll('button')).find(b => {
                   const aria = b.getAttribute('aria-label') || '';
-                  return aria.toLowerCase().indexOf('select model') !== -1;
+                  const low = aria.toLowerCase();
+                  return low.indexOf('select model') !== -1 || aria.indexOf('选择模型') !== -1;
                 });
                 if (composerBtn) {
                   const aria = composerBtn.getAttribute('aria-label') || '';
@@ -3268,14 +3800,14 @@ async function main() {
                   if (txt) return txt;
                 }
 
-                // 备用：深度广谱搜索位于界面下半部（输入框附近）包含 Flash / Argon / Gemini 的按钮
+                // 备用：深度广谱搜索位于界面下半部（输入框附近）包含模型关键字的按钮
                 const allBtns = Array.from(document.querySelectorAll('button')).filter(el => {
                   const r = el.getBoundingClientRect();
                   return el.isConnected && r.width > 0 && r.height > 0 && r.top > (window.innerHeight * 0.4);
                 });
                 for (const btn of allBtns) {
                   const txt = (btn.getAttribute('aria-label') || btn.textContent || '').trim();
-                  if (txt.indexOf('Flash') !== -1 || txt.indexOf('Argon') !== -1 || txt.indexOf('Claude') !== -1 || txt.indexOf('GPT') !== -1) {
+                  if (txt.indexOf('Hydrogen') !== -1 || txt.indexOf('Flash') !== -1 || txt.indexOf('Argon') !== -1 || txt.indexOf('Claude') !== -1 || txt.indexOf('GPT') !== -1 || txt.indexOf('Opus') !== -1 || txt.indexOf('Sonnet') !== -1) {
                     return txt;
                   }
                 }
@@ -3294,49 +3826,84 @@ async function main() {
 
             // 2. 根据当前实时模型，精确映射至对应的官方额度池（Gemini Models / Argon / Claude & GPT）
             function resolveQuotaGroupFromModel(modelName) {
-              const m = (modelName || '').toLowerCase();
+              const raw = (modelName || '').trim();
+              const m = raw.toLowerCase();
               if (m.indexOf('argon') !== -1) {
                 return {
                   groupId: 'gemini-argon-wtu',
                   groupDisplayName: 'Gemini 4 Argon',
                   badgeName: 'Gemini 4 Argon',
                   isArgon: true,
-                  tag: 'Gemini 4 Argon'
+                  tag: raw || 'Gemini 4 Argon'
                 };
               }
-              if (m.indexOf('claude') !== -1 || m.indexOf('gpt') !== -1 || m.indexOf('3p') !== -1) {
-                let tag = 'Claude / GPT';
-                if (m.indexOf('claude 3.7') !== -1) tag = 'Claude 3.7';
-                else if (m.indexOf('claude 3.5') !== -1) tag = 'Claude 3.5';
-                else if (m.indexOf('gpt-4') !== -1) tag = 'GPT-4o';
+              if (m.indexOf('claude') !== -1 || m.indexOf('gpt') !== -1 || m.indexOf('3p') !== -1 || m.indexOf('opus') !== -1 || m.indexOf('sonnet') !== -1) {
                 return {
                   groupId: '3p',
                   groupDisplayName: 'Claude and GPT models',
                   badgeName: 'Claude / GPT',
                   isArgon: false,
-                  tag: tag
+                  tag: raw || 'Claude / GPT'
                 };
               }
-              // 默认为 Gemini 3.8 Flash
-              let tag = 'Gemini 3.8 Flash High';
-              if (m.indexOf('medium') !== -1) tag = 'Gemini 3.8 Flash Medium';
-              else if (m.indexOf('low') !== -1) tag = 'Gemini 3.8 Flash Low';
-              else if (m.indexOf('high') !== -1) tag = 'Gemini 3.8 Flash High';
+              if (m.indexOf('hydrogen') !== -1) {
+                return {
+                  groupId: 'gemini',
+                  groupDisplayName: 'Gemini Models',
+                  badgeName: 'Gemini Models',
+                  isArgon: false,
+                  tag: raw || 'Gemini 4 Hydrogen'
+                };
+              }
               return {
                 groupId: 'gemini',
                 groupDisplayName: 'Gemini Models',
-                badgeName: 'Gemini 3.8 Flash',
+                badgeName: 'Gemini Models',
                 isArgon: false,
-                tag: tag
+                tag: raw || 'Gemini 3.8 Flash High'
               };
             }
 
-            // 3. 直接通过 Host React Fiber 提取指定额度组的真实配额与精确倒计时
-            async function fetchHostQuotaFromFiber(targetGroupId, force) {
-              const chosenGroup = targetGroupId || 'gemini';
+            function parseDescCountdown(desc) {
+              if (!desc) return '';
+              const m = desc.match(/refresh in ([^.]+)/i);
+              if (!m) return '';
+              let t = m[1].trim();
+              t = t.replace(/days?/g, '天')
+                   .replace(/hours?/g, '小时')
+                   .replace(/minutes?/g, '分')
+                   .replace(/seconds?/g, '秒');
+              return t.split(',').map(s => s.trim()).join(' ');
+            }
+
+            function formatQuotaCountdown(resetTime) {
+              if (!resetTime) return '--:--';
+              const sec = parseInt(resetTime.seconds ? resetTime.seconds.toString() : '0', 10);
+              if (!sec) return '--:--';
+              const diff = Math.max(0, sec - Math.floor(Date.now() / 1000));
+              if (diff <= 0) return '即将重置';
+              const d = Math.floor(diff / 86400);
+              const h = Math.floor((diff % 86400) / 3600);
+              const m = Math.floor((diff % 3600) / 60);
+              const s = diff % 60;
+              if (d > 0) {
+                return d + '天 ' + String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+              }
+              return String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+            }
+
+            function classifyGroupId(group) {
+              const name = (group?.displayName || group?.id || '').toLowerCase();
+              if (name.indexOf('claude') !== -1 || name.indexOf('gpt') !== -1) return '3p';
+              if (name.indexOf('argon') !== -1) return 'gemini-argon-wtu';
+              return 'gemini';
+            }
+
+            // 3. 获取账号下全部模型额度池（Gemini / Claude & GPT / Gemini 4 Argon）
+            async function fetchAllHostQuotasFromFiber(force) {
               const now = Date.now();
-              if (!force && hostQuotaCache.data && (now - hostQuotaCache.lastFetched < 3000) && hostQuotaCache.lastGroup === chosenGroup) {
-                return hostQuotaCache.data;
+              if (!force && allHostQuotasCache.groups && (now - allHostQuotasCache.lastFetched < 3000)) {
+                return allHostQuotasCache.groups;
               }
               try {
                 const seen = new Set();
@@ -3361,85 +3928,71 @@ async function main() {
                 if (service) {
                   const response = await service.retrieveUserQuotaSummary(undefined, false);
                   const allGroups = response?.response?.groups || [];
+                  const parsed = allGroups.map(g => {
+                    const gId = classifyGroupId(g);
+                    const buckets = Array.isArray(g.buckets) ? g.buckets.map(b => {
+                      const rawVal = b.remaining?.case === 'remainingFraction' ? b.remaining.value : b.remaining?.value;
+                      const pctOne = (typeof rawVal === 'number' && Number.isFinite(rawVal)) ? (Math.round(rawVal * 1000) / 10) : null;
+                      const pctDisplay = pctOne !== null ? ((pctOne % 1 === 0 ? pctOne.toFixed(0) : pctOne.toFixed(1)) + '%') : '--';
+                      const countStr = parseDescCountdown(b.description) || formatQuotaCountdown(b.resetTime);
+                      const is5h = (b.bucketId || '').indexOf('5h') !== -1 || b.window === '5h';
+                      const isWeekly = (b.bucketId || '').indexOf('weekly') !== -1 || b.window === 'weekly';
+                      return {
+                        bucketId: b.bucketId || '',
+                        window: is5h ? '5h' : (isWeekly ? 'weekly' : (b.window || '')),
+                        displayName: b.displayName || (is5h ? '5h limit' : 'Weekly limit'),
+                        pctNum: pctOne,
+                        pctDisplay,
+                        countdown: countStr
+                      };
+                    }) : [];
+                    return {
+                      groupId: gId,
+                      displayName: g.displayName || 'Model Pool',
+                      description: g.description || '',
+                      isArgon: gId === 'gemini-argon-wtu',
+                      buckets
+                    };
+                  });
+                  allHostQuotasCache.groups = parsed;
+                  allHostQuotasCache.lastFetched = now;
+                  return parsed;
+                }
+              } catch (err) {
+                console.error('[星星猫娘] 获取全模型额度异常:', err);
+              }
+              return allHostQuotasCache.groups || [];
+            }
 
-                  let matchedGroup = null;
-                  if (chosenGroup === '3p' || chosenGroup.indexOf('claude') !== -1) {
-                    matchedGroup = allGroups.find(g => (g.displayName || g.id || '').toLowerCase().indexOf('claude') !== -1);
-                  } else if (chosenGroup === 'gemini-argon-wtu' || chosenGroup.indexOf('argon') !== -1) {
-                    matchedGroup = allGroups.find(g => (g.displayName || g.id || '').toLowerCase().indexOf('argon') !== -1);
-                  } else {
-                    matchedGroup = allGroups.find(g => {
-                      const name = (g.displayName || g.id || '').toLowerCase();
-                      return name.indexOf('gemini') !== -1 && name.indexOf('argon') === -1;
-                    });
-                  }
-
-                  if (!matchedGroup && allGroups.length > 0) {
-                    matchedGroup = allGroups[0];
-                  }
-
-                  function parseDescCountdown(desc) {
-                    if (!desc) return '';
-                    const m = desc.match(/refresh in ([^.]+)/i);
-                    if (!m) return '';
-                    let t = m[1].trim();
-                    t = t.replace(/days?/g, '天')
-                         .replace(/hours?/g, '小时')
-                         .replace(/minutes?/g, '分')
-                         .replace(/seconds?/g, '秒');
-                    t = t.split(',').map(s => s.trim()).join(' ');
-                    return t;
-                  }
-
-                  function formatCountdown(resetTime) {
-                    if (!resetTime) return '--:--';
-                    const sec = parseInt(resetTime.seconds ? resetTime.seconds.toString() : '0', 10);
-                    if (!sec) return '--:--';
-                    const diff = Math.max(0, sec - Math.floor(Date.now() / 1000));
-                    if (diff <= 0) return '即将重置';
-                    const d = Math.floor(diff / 86400);
-                    const h = Math.floor((diff % 86400) / 3600);
-                    const m = Math.floor((diff % 3600) / 60);
-                    const s = diff % 60;
-                    if (d > 0) {
-                      return d + '天 ' + String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
-                    }
-                    return String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
-                  }
-
-                  let f5 = null;
-                  let wk = null;
-                  let f5Time = '--:--';
-                  let wkTime = '--:--';
-
-                  if (matchedGroup && Array.isArray(matchedGroup.buckets)) {
-                    for (const bucket of matchedGroup.buckets) {
-                      const bId = bucket.bucketId || '';
-                      const rawVal = bucket.remaining?.case === 'remainingFraction' ? bucket.remaining.value : bucket.remaining?.value;
-                      if (typeof rawVal === 'number' && Number.isFinite(rawVal)) {
-                        const pctOne = Math.round(rawVal * 1000) / 10;
-                        const pctDisplay = (pctOne % 1 === 0 ? pctOne.toFixed(0) : pctOne.toFixed(1)) + '%';
-                        const countStr = parseDescCountdown(bucket.description) || formatCountdown(bucket.resetTime);
-
-                        if (bId.indexOf('5h') !== -1) {
-                          f5 = pctDisplay;
-                          f5Time = countStr;
-                        } else if (bId.indexOf('weekly') !== -1) {
-                          wk = pctDisplay;
-                          wkTime = countStr;
-                        }
-                      }
+            // 3.1 直接通过 Host React Fiber 提取指定额度组的真实配额与精确倒计时
+            async function fetchHostQuotaFromFiber(targetGroupId, force) {
+              const chosenGroup = targetGroupId || 'gemini';
+              const now = Date.now();
+              if (!force && hostQuotaCache.data && (now - hostQuotaCache.lastFetched < 3000) && hostQuotaCache.lastGroup === chosenGroup) {
+                return hostQuotaCache.data;
+              }
+              try {
+                const allGroups = await fetchAllHostQuotasFromFiber(force);
+                let matchedGroup = allGroups.find(g => g.groupId === chosenGroup);
+                if (!matchedGroup && allGroups.length > 0) matchedGroup = allGroups[0];
+                if (matchedGroup) {
+                  let f5 = null, wk = null, f5Time = '--:--', wkTime = '--:--';
+                  for (const b of matchedGroup.buckets) {
+                    if (b.window === '5h') {
+                      f5 = b.pctDisplay;
+                      f5Time = b.countdown;
+                    } else if (b.window === 'weekly') {
+                      wk = b.pctDisplay;
+                      wkTime = b.countdown;
                     }
                   }
-
                   const resData = {
                     fiveHour: f5,
                     weekly: wk,
                     fiveTime: f5Time,
                     weekTime: wkTime,
-                    groupDisplayName: matchedGroup?.displayName || 'Gemini Models'
+                    groupDisplayName: matchedGroup.displayName
                   };
-
                   hostQuotaCache.data = resData;
                   hostQuotaCache.lastGroup = chosenGroup;
                   hostQuotaCache.lastFetched = now;
@@ -3451,7 +4004,16 @@ async function main() {
               return hostQuotaCache.data || null;
             }
 
-            // 4. 实时监听输入框与模型切换（响应式模型变动捕获）
+            // 3.9 获取当前活跃对话框 ID（从宿主路由 /c/<conversationId> 实时解析）
+            function getActiveConversationId() {
+              try {
+                const m = (window.location.pathname || '').match(new RegExp('/c/([0-9a-zA-Z_-]{8,64})'));
+                if (m && m[1]) return m[1];
+              } catch (e) {}
+              return 'none';
+            }
+
+            // 4. 实时监听输入框、模型切换与对话框路由切换
             function setupRealtimeModelObserver() {
               try {
                 if (window.__catgirl_model_observer) return;
@@ -3460,13 +4022,15 @@ async function main() {
                   if (observerTimer) return;
                   observerTimer = setTimeout(() => {
                     observerTimer = null;
+                    const curConv = getActiveConversationId();
                     const curModel = detectActiveComposerModel();
-                    if (curModel && curModel !== window.__catgirl_last_active_model) {
+                    if (curConv !== window.__catgirl_last_conv_id || (curModel && curModel !== window.__catgirl_last_active_model)) {
                       syncDashboardData(true);
                     }
                   }, 120);
                 });
                 obs.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['aria-label', 'data-testid'] });
+                window.addEventListener('popstate', () => syncDashboardData(true), { signal });
                 window.__catgirl_model_observer = obs;
               } catch (e) {}
             }
@@ -3560,7 +4124,7 @@ async function main() {
 
               const pillEl = document.getElementById('live-catgirl-token-pill');
               if (pillEl) {
-                pillEl.title = "当前实时模型: " + activeModel + " | 上下文: " + (data.contextTokens || (tokenDisplay + " tok")) + " (" + ctxPct + "% 已用) | [" + quotaGroup + "] 5小时: " + data.fiveBalance + " · 周: " + data.weekBalance + " (点击展开完整看板)";
+                pillEl.title = "当前实时模型: " + activeModel + " | 上下文: " + (data.contextTokens || (tokenDisplay + " tok")) + " (" + ctxPct + "% 已用) | 本对话累计: " + (data.convTotal || '--') + " | [" + quotaGroup + "] 5小时: " + data.fiveBalance + " · 周: " + data.weekBalance + " (点击展开完整看板)";
               }
 
               const hudFiveVal = document.getElementById('live-hud-five-val');
@@ -3577,6 +4141,8 @@ async function main() {
               const hudMonthVal = document.getElementById('live-hud-month-val');
               const hudTpsVal = document.getElementById('live-hud-tps-val');
               const hudCacheVal = document.getElementById('live-hud-cache-val');
+              const hudConvTotalVal = document.getElementById('live-hud-conv-total-val');
+              const hudConvReq = document.getElementById('live-hud-conv-req');
               const hudModelTag = document.getElementById('live-hud-model-tag');
               const hudQuotaGroupName = document.getElementById('live-hud-quota-group-name');
               const hudQuotaStatus = document.getElementById('live-hud-quota-status');
@@ -3646,6 +4212,8 @@ async function main() {
               if (hudMonthVal) hudMonthVal.textContent = data.month;
               if (hudTpsVal) hudTpsVal.textContent = data.tps;
               if (hudCacheVal) hudCacheVal.textContent = data.cacheRate;
+              if (hudConvTotalVal) hudConvTotalVal.textContent = data.convTotal || '--';
+              if (hudConvReq) hudConvReq.textContent = (data.convRequests > 0) ? '(' + data.convRequests + ' 次请求)' : '';
               if (hudModelTag) hudModelTag.textContent = data.contextModel;
 
               if (hudBottomBtn) {
@@ -3735,7 +4303,7 @@ async function main() {
               }
             }
 
-            // 7. 核心数据同步（根据当前对话正在实时使用的模型进行智能配额切换，绝不依赖外部 Dashboard）
+            // 7. 核心数据同步（根据当前对话正在实时使用的模型进行智能配额切换，并支持预览任意模型额度池）
             async function syncDashboardData(force = false) {
               try {
                 setupRealtimeModelObserver();
@@ -3743,15 +4311,56 @@ async function main() {
                 const shadow = bar?.shadowRoot;
                 const sidecarPort = window.__catgirl_sidecar_port || 51149;
 
-                // 1. 动态感知当前对话正在实时生效的具体模型
-                const activeModel = detectActiveComposerModel() || 'Gemini 3.8 Flash High';
+                // 1. 先拉取本地 sidecar 统计（按当前活跃对话框 conversation_id 精准拉取，并可拿到后端精准模型名）
+                let stats = null;
+                const activeConvId = getActiveConversationId();
+                const isConvChanged = (window.__catgirl_last_conv_id && window.__catgirl_last_conv_id !== activeConvId);
+                window.__catgirl_last_conv_id = activeConvId;
+                if (isConvChanged) {
+                  window.__catgirl_current_ctx_pct = 0;
+                }
 
-                // 2. 将当前模型精准映射至官方额度组 (Gemini Models / 4 Argon / Claude & GPT)
+                let liveHostPct = null;
+                if (shadow) {
+                  const rawShadowPct = (shadow.getElementById('context-percent')?.textContent || '').trim();
+                  if (rawShadowPct && rawShadowPct !== '—') {
+                    const p = parseInt(rawShadowPct, 10);
+                    if (!isNaN(p) && p >= 0 && p <= 100) liveHostPct = p;
+                  } else {
+                    const sumMatch = (shadow.getElementById('context-summary')?.textContent || '').match(/([0-9]+)%/);
+                    if (sumMatch) liveHostPct = parseInt(sumMatch[1], 10);
+                  }
+                }
+
+                try {
+                  const controller = new AbortController();
+                  const timer = setTimeout(() => controller.abort(), 2500);
+                  const qs = new URLSearchParams();
+                  if (activeConvId) qs.set('conversation_id', activeConvId);
+                  if (liveHostPct !== null && liveHostPct > 0) qs.set('host_ctx_pct', String(liveHostPct));
+                  const queryStr = qs.toString() ? ('?' + qs.toString()) : '';
+                  const resp = await fetch('http://127.0.0.1:' + sidecarPort + '/api/stats' + queryStr, {
+                    signal: controller.signal,
+                    cache: 'no-store'
+                  });
+                  clearTimeout(timer);
+                  if (resp.ok) stats = await resp.json();
+                } catch (e) {}
+
+                // 2. 动态感知当前对话正在实时生效的具体模型（结合前端控件与后端对话日志）
+                let detectedModel = detectActiveComposerModel();
+                const backendModel = (stats && stats.model && stats.model !== 'Gemini') ? stats.model : '';
+                if (!detectedModel || /^(high|medium|low|minimal|thinking)$/i.test(detectedModel)) {
+                  detectedModel = backendModel || detectedModel || 'Gemini 3.8 Flash High';
+                }
+                const activeModel = detectedModel;
+
+                // 3. 将当前模型精准映射至官方额度组 (Gemini Models / 4 Argon / Claude & GPT)
                 const quotaMeta = resolveQuotaGroupFromModel(activeModel);
+                const previewPool = window.__catgirl_quota_preview_group || 'auto';
+                const targetQuotaGroupId = (previewPool !== 'auto') ? previewPool : quotaMeta.groupId;
 
-                // 3. 监听模型切换事件并给出轻量萌态气泡提示
                 if (window.__catgirl_last_active_model && window.__catgirl_last_active_model !== activeModel) {
-                  console.log('[星星猫娘] 实时感知到模型切换: ' + window.__catgirl_last_active_model + ' -> ' + activeModel);
                   if (window.__antigravityCatgirl?.showBubble && !isEasterEggActive) {
                     window.__antigravityCatgirl.showBubble('⚡ 实时切换至模型：' + activeModel + '，额度池已自动同步喵~ 🐾', 2500);
                   }
@@ -3759,16 +4368,26 @@ async function main() {
                 }
                 window.__catgirl_last_active_model = activeModel;
 
-                // 4. 从 React Fiber 原生直连获取该模型对应的最权威 5h & 周配额与重置时间
+                // 同步 HUD 额度池切换标签高亮
+                const switcherEl = document.getElementById('live-hud-quota-switcher');
+                if (switcherEl) {
+                  switcherEl.querySelectorAll('.hud-quota-tab[data-pool]').forEach(btn => {
+                    btn.classList.toggle('active', btn.getAttribute('data-pool') === previewPool);
+                  });
+                }
+
+                // 4. 从 React Fiber 原生直连获取目标额度组对应的最权威 5h & 周配额与重置时间
                 let realFive = '--';
                 let realWeek = '--';
                 let fiveCount = '--:--';
                 let weekCount = '--:--';
+                let displayGroupName = quotaMeta.badgeName;
 
                 try {
-                  const fiberQuota = await fetchHostQuotaFromFiber(quotaMeta.groupId, force);
+                  const fiberQuota = await fetchHostQuotaFromFiber(targetQuotaGroupId, force);
                   if (fiberQuota) {
-                    if (quotaMeta.isArgon) {
+                    displayGroupName = fiberQuota.groupDisplayName || displayGroupName;
+                    if (targetQuotaGroupId === 'gemini-argon-wtu' && !fiberQuota.fiveHour) {
                       realFive = '随周额度';
                       fiveCount = '无单独限制';
                     } else if (fiberQuota.fiveHour) {
@@ -3784,25 +4403,13 @@ async function main() {
                   console.warn('[星星猫娘] 获取 Fiber 配额出错:', e);
                 }
 
-                // 5. 尝试读取本地 sidecar 统计（设置 2500ms 超时）
-                let stats = null;
-                try {
-                  const controller = new AbortController();
-                  const timer = setTimeout(() => controller.abort(), 2500);
-                  const currentPctParam = (typeof window.__catgirl_current_ctx_pct === 'number' && window.__catgirl_current_ctx_pct > 0) ? ('?host_ctx_pct=' + window.__catgirl_current_ctx_pct) : '';
-                  const resp = await fetch('http://127.0.0.1:' + sidecarPort + '/api/stats' + currentPctParam, {
-                    signal: controller.signal,
-                    cache: 'no-store'
-                  });
-                  clearTimeout(timer);
-                  if (resp.ok) stats = await resp.json();
-                } catch (e) {}
-
-                // 6. 读取上下文与历史汇总指标（完全脱离 Dashboard 的额度组切换）
+                // 5. 读取上下文与历史汇总指标
                 let today = stats?.today || '0';
                 let month = stats?.month || '0';
-                let tps = stats?.tps ? stats.tps + ' tok/s' : '118.4 tok/s';
+                let tps = stats?.tps ? (String(stats.tps).includes('tok/s') ? stats.tps : stats.tps + ' tok/s') : '--';
                 let cacheRate = stats?.cacheRate || '--';
+                let convTotal = stats?.convTotal || '0 tok';
+                let convRequests = Number(stats?.convRequests || 0);
                 let ctxTokens = stats?.contextTokens ? stats.contextTokens + ' tok' : '--';
                 let ctxPct = stats?.contextPercent || 0;
 
@@ -3830,7 +4437,7 @@ async function main() {
 
                 renderDashboardView({
                   mode: shadow ? 'pulse' : 'native',
-                  quotaGroupName: quotaMeta.badgeName,
+                  quotaGroupName: displayGroupName,
                   tokenDisplay: ctxTokens,
                   ctxPct,
                   contextModel: quotaMeta.tag || activeModel,
@@ -3842,6 +4449,8 @@ async function main() {
                   month,
                   tps,
                   cacheRate,
+                  convTotal,
+                  convRequests,
                   contextTokens: ctxTokens
                 });
 
@@ -3849,6 +4458,663 @@ async function main() {
               } catch (e) {
                 console.error('[星星猫娘] 同步异常:', e);
               }
+            }
+            window.__catgirl_sync_dashboard = syncDashboardData;
+
+            // 7.5 完整用量统计与全模型额度中心弹窗 (活动概览热力图 + 按模型统计详情 + 全部模型额度)
+            async function openCatgirlAnalyticsModal(initialTab = 'activity') {
+              const existing = document.getElementById('catgirl-analytics-modal');
+              if (existing) existing.remove();
+
+              const MODEL_COLORS = ['#8b8cf8', '#6382f6', '#38bdf8', '#34d399', '#f472b6', '#f59e0b', '#a78bfa'];
+              const state = {
+                tab: initialTab || 'activity',
+                lang: 'zh',
+                granularity: 'day', // 'day' | 'week' | 'month'
+                heatMode: 'daily',  // 'daily' | 'weekly'
+                year: new Date().getFullYear(),
+                monthKey: new Date().getFullYear() + '-' + String(new Date().getMonth() + 1).padStart(2, '0'),
+                selectedDate: '',
+                hiddenModels: {},
+                analytics: null,
+                quotas: []
+              };
+
+              const modal = document.createElement('div');
+              modal.id = 'catgirl-analytics-modal';
+              modal.innerHTML = '<div class="cg-modal-card">' +
+                '<div class="cg-modal-head">' +
+                  '<div>' +
+                    '<div class="cg-modal-eyebrow">ANTIGRAVITY · CATGIRL ANALYTICS</div>' +
+                    '<div class="cg-modal-title" id="cg-m-title">用量统计与模型额度</div>' +
+                    '<div class="cg-modal-sub"><span class="cg-dot-green"></span><span id="cg-m-sub">本机 Antigravity · 当前账号</span></div>' +
+                  '</div>' +
+                  '<div class="cg-head-actions">' +
+                    '<button class="cg-icon-btn" id="cg-lang-btn" title="切换中英文">EN</button>' +
+                    '<button class="cg-icon-btn" id="cg-refresh-btn" title="刷新统计与额度">↻</button>' +
+                    '<button class="cg-icon-btn" id="cg-close-btn" title="关闭">✕</button>' +
+                  '</div>' +
+                '</div>' +
+                '<div class="cg-tabs">' +
+                  '<button class="cg-tab-btn" data-tab="activity" id="cg-tab-activity">活动概览</button>' +
+                  '<button class="cg-tab-btn" data-tab="details" id="cg-tab-details">用量详情</button>' +
+                  '<button class="cg-tab-btn" data-tab="quotas" id="cg-tab-quotas">全部模型额度</button>' +
+                '</div>' +
+                '<div class="cg-modal-body" id="cg-modal-body"><div style="padding:36px;text-align:center;color:#94a3b8;">正在读取本地对话统计与实时额度...</div></div>' +
+                '<div class="cg-tooltip" id="cg-tooltip"></div>' +
+              '</div>';
+
+              document.body.appendChild(modal);
+
+              const tooltipEl = modal.querySelector('#cg-tooltip');
+              const bodyElModal = modal.querySelector('#cg-modal-body');
+
+              function closeModal() {
+                modal.remove();
+              }
+
+              modal.addEventListener('pointerdown', (e) => {
+                if (e.target === modal) closeModal();
+              });
+              modal.querySelector('#cg-close-btn').addEventListener('click', closeModal);
+              const onEsc = (e) => {
+                if (e.key === 'Escape') {
+                  closeModal();
+                  document.removeEventListener('keydown', onEsc);
+                }
+              };
+              document.addEventListener('keydown', onEsc);
+
+              function fmtTokShort(n) {
+                const v = Number(n || 0);
+                if (v >= 1000000) return (v / 1000000).toFixed(1) + 'M';
+                if (v >= 1000) return (v / 1000).toFixed(v >= 100000 ? 0 : 1) + 'K';
+                return String(v);
+              }
+              function fmtNum(n) {
+                return Number(n || 0).toLocaleString();
+              }
+              function getModelColor(modelName, allModels) {
+                const idx = allModels.indexOf(modelName);
+                return MODEL_COLORS[(idx >= 0 ? idx : 0) % MODEL_COLORS.length];
+              }
+              function t(zh, en) {
+                return state.lang === 'en' ? en : zh;
+              }
+              function showTip(ev, html) {
+                tooltipEl.innerHTML = html;
+                tooltipEl.style.display = 'block';
+                const x = Math.min(window.innerWidth - 230, ev.clientX + 12);
+                const y = Math.min(window.innerHeight - 130, ev.clientY + 12);
+                tooltipEl.style.left = x + 'px';
+                tooltipEl.style.top = y + 'px';
+              }
+              function hideTip() {
+                tooltipEl.style.display = 'none';
+              }
+
+              async function loadAllData(force) {
+                const sidecarPort = window.__catgirl_sidecar_port || 51149;
+                try {
+                  const [aResp, qGroups] = await Promise.all([
+                    fetch('http://127.0.0.1:' + sidecarPort + '/api/analytics' + (force ? '?refresh=1' : ''), { cache: 'no-store' })
+                      .then(r => r.ok ? r.json() : null).catch(() => null),
+                    fetchAllHostQuotasFromFiber(force).catch(() => [])
+                  ]);
+                  if (aResp) {
+                    state.analytics = aResp;
+                    if (!state.selectedDate) {
+                      const days = Object.keys(aResp.daily || {}).sort();
+                      state.selectedDate = aResp.daily?.[aResp.todayStr] ? aResp.todayStr : (days[days.length - 1] || aResp.todayStr || '');
+                    }
+                    if (aResp.todayStr) state.monthKey = aResp.todayStr.slice(0, 7);
+                  }
+                  state.quotas = Array.isArray(qGroups) ? qGroups : [];
+                } catch (e) {}
+                renderModal();
+              }
+
+              function buildSummaryHtml(summary) {
+                const s = summary || { today: 0, week: 0, month: 0, allTime: 0 };
+                const unit = t('Token', 'Token');
+                const items = [
+                  { label: t('今日用量', 'Today'), val: fmtTokShort(s.today) },
+                  { label: t('本周用量', 'This week'), val: fmtTokShort(s.week) },
+                  { label: t('本月用量', 'This month'), val: fmtTokShort(s.month) },
+                  { label: t('累计用量', 'All time'), val: fmtTokShort(s.allTime) }
+                ];
+                return '<div class="cg-summary-grid">' + items.map(it =>
+                  '<div class="cg-summary-cell">' +
+                    '<div class="cg-summary-label">' + it.label + '</div>' +
+                    '<div class="cg-summary-val">' + it.val + '<span class="cg-summary-unit">' + unit + '</span></div>' +
+                  '</div>'
+                ).join('') + '</div>';
+              }
+
+              function renderActivityTab() {
+                const data = state.analytics || { summary: {}, daily: {}, years: [state.year] };
+                const daily = data.daily || {};
+                const yr = state.year;
+                const years = (data.years && data.years.length) ? data.years : [yr];
+
+                // 计算全年每日格子（从该年1月1日所在周的周一开始，到12月31日）
+                const jan1 = new Date(yr, 0, 1);
+                const startOffset = (jan1.getDay() + 6) % 7; // Monday=0
+                const gridStart = new Date(yr, 0, 1 - startOffset);
+                const dec31 = new Date(yr, 11, 31);
+                const cells = [];
+                let yearTokens = 0;
+                let maxDayTok = 1;
+                for (let d = new Date(gridStart); d <= dec31 || d.getDay() !== 1; d.setDate(d.getDate() + 1)) {
+                  const key = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+                  const inYear = d.getFullYear() === yr;
+                  const entry = inYear ? daily[key] : null;
+                  const tot = entry ? entry.total : 0;
+                  if (inYear) {
+                    yearTokens += tot;
+                    if (tot > maxDayTok) maxDayTok = tot;
+                  }
+                  cells.push({
+                    dateKey: key,
+                    inYear,
+                    total: tot,
+                    requests: entry ? entry.requests : 0,
+                    month: d.getMonth(),
+                    day: d.getDate()
+                  });
+                }
+
+                const weeksCount = Math.ceil(cells.length / 7);
+                const monthNames = state.lang === 'en'
+                  ? ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+                  : ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
+
+                // 计算每月起始列位置
+                const monthColMap = {};
+                for (let w = 0; w < weeksCount; w++) {
+                  for (let r = 0; r < 7; r++) {
+                    const c = cells[w * 7 + r];
+                    if (c && c.inYear && c.day <= 7 && monthColMap[c.month] === undefined) {
+                      monthColMap[c.month] = w;
+                    }
+                  }
+                }
+
+                let heatGridHtml = '';
+                if (state.heatMode === 'daily') {
+                  const monthsHeader = monthNames.map((mn, idx) => {
+                    const col = monthColMap[idx] ?? idx * 4;
+                    return '<span style="grid-column:' + (col + 1) + '">' + mn + '</span>';
+                  }).join('');
+
+                  const dayLabels = state.lang === 'en'
+                    ? ['M', '', 'W', '', 'F', '', 'S']
+                    : ['一', '', '三', '', '五', '', '日'];
+
+                  const tilesHtml = cells.map(c => {
+                    if (!c.inYear) return '<div class="cg-heat-cell" style="opacity:0;pointer-events:none"></div>';
+                    let lvl = '';
+                    if (c.total > 0) {
+                      const ratio = c.total / maxDayTok;
+                      if (ratio > 0.65) lvl = 'cg-heat-l4';
+                      else if (ratio > 0.35) lvl = 'cg-heat-l3';
+                      else if (ratio > 0.12) lvl = 'cg-heat-l2';
+                      else lvl = 'cg-heat-l1';
+                    }
+                    const sel = (state.selectedDate === c.dateKey) ? ' selected' : '';
+                    return '<div class="cg-heat-cell ' + lvl + sel + '" data-date="' + c.dateKey + '" data-tot="' + c.total + '" data-req="' + c.requests + '"></div>';
+                  }).join('');
+
+                  heatGridHtml =
+                    '<div class="cg-heatmap-scroll">' +
+                      '<div class="cg-heatmap-months" style="grid-template-columns:repeat(' + weeksCount + ',14px);">' + monthsHeader + '</div>' +
+                      '<div class="cg-heatmap-main">' +
+                        '<div class="cg-heatmap-days">' + dayLabels.map(l => '<span>' + l + '</span>').join('') + '</div>' +
+                        '<div class="cg-heatmap-grid">' + tilesHtml + '</div>' +
+                      '</div>' +
+                    '</div>';
+                } else {
+                  // 按周聚合热力格
+                  const weekBuckets = [];
+                  let maxWkTok = 1;
+                  for (let w = 0; w < weeksCount; w++) {
+                    let wTot = 0, wReq = 0, firstKey = '';
+                    for (let r = 0; r < 7; r++) {
+                      const c = cells[w * 7 + r];
+                      if (c && c.inYear) {
+                        if (!firstKey) firstKey = c.dateKey;
+                        wTot += c.total;
+                        wReq += c.requests;
+                      }
+                    }
+                    if (wTot > maxWkTok) maxWkTok = wTot;
+                    weekBuckets.push({ idx: w + 1, firstKey, total: wTot, requests: wReq });
+                  }
+                  heatGridHtml = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(32px,1fr));gap:6px;padding:6px 0;">' +
+                    weekBuckets.map(wb => {
+                      let lvl = '';
+                      if (wb.total > 0) {
+                        const ratio = wb.total / maxWkTok;
+                        if (ratio > 0.65) lvl = 'cg-heat-l4';
+                        else if (ratio > 0.35) lvl = 'cg-heat-l3';
+                        else if (ratio > 0.12) lvl = 'cg-heat-l2';
+                        else lvl = 'cg-heat-l1';
+                      }
+                      return '<div class="cg-heat-cell ' + lvl + '" data-date="' + (wb.firstKey || '') + '" data-tot="' + wb.total + '" data-req="' + wb.requests + '" style="width:100%;height:26px;border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:9.5px;color:#cbd5e1;">W' + wb.idx + '</div>';
+                    }).join('') +
+                  '</div>';
+                }
+
+                const selEntry = daily[state.selectedDate] || { total: 0, requests: 0 };
+                const selBanner =
+                  '<div class="cg-selected-banner">' +
+                    '<div>' +
+                      '<div style="font-size:13px;font-weight:700;color:#f8fafc;">' + (state.selectedDate || data.todayStr || '--') + '</div>' +
+                      '<div style="font-size:11.5px;color:#94a3b8;margin-top:2px;">' + fmtNum(selEntry.total) + ' Token · ' + selEntry.requests + ' ' + t('次请求', 'requests') + '</div>' +
+                    '</div>' +
+                    '<button class="cg-link-btn" id="cg-jump-details-btn">' + t('查看用量详情 →', 'View usage →') + '</button>' +
+                  '</div>';
+
+                return buildSummaryHtml(data.summary) +
+                  '<div class="cg-panel">' +
+                    '<div class="cg-panel-head">' +
+                      '<div>' +
+                        '<div class="cg-panel-title">' + t('Token 活动热力图', 'Token activity') + '</div>' +
+                        '<div class="cg-panel-sub">' + t('每个方块代表一天', 'Each square is one day') + '</div>' +
+                      '</div>' +
+                      '<div style="display:flex;align-items:center;gap:8px;">' +
+                        '<div class="cg-seg-group">' +
+                          '<button class="cg-seg-btn' + (state.heatMode === 'daily' ? ' active' : '') + '" data-heat="daily">' + t('日', 'Daily') + '</button>' +
+                          '<button class="cg-seg-btn' + (state.heatMode === 'weekly' ? ' active' : '') + '" data-heat="weekly">' + t('周', 'Weekly') + '</button>' +
+                        '</div>' +
+                        '<select class="cg-select" id="cg-year-sel">' + years.map(y => '<option value="' + y + '"' + (y === yr ? ' selected' : '') + '>' + y + '</option>').join('') + '</select>' +
+                      '</div>' +
+                    '</div>' +
+                    heatGridHtml +
+                    '<div class="cg-heatmap-foot">' +
+                      '<span>' + yr + ' · ' + fmtNum(yearTokens) + ' tokens</span>' +
+                      '<div style="display:flex;align-items:center;gap:4px;">' +
+                        '<span>' + t('低', 'Less') + '</span>' +
+                        '<span class="cg-heat-cell" style="cursor:default"></span>' +
+                        '<span class="cg-heat-cell cg-heat-l1" style="cursor:default"></span>' +
+                        '<span class="cg-heat-cell cg-heat-l2" style="cursor:default"></span>' +
+                        '<span class="cg-heat-cell cg-heat-l3" style="cursor:default"></span>' +
+                        '<span class="cg-heat-cell cg-heat-l4" style="cursor:default"></span>' +
+                        '<span>' + t('高', 'More') + '</span>' +
+                      '</div>' +
+                    '</div>' +
+                  '</div>' +
+                  selBanner;
+              }
+
+              function renderDetailsTab() {
+                const data = state.analytics || { summary: {}, daily: {}, models: [] };
+                const daily = data.daily || {};
+                const allModels = data.models || [];
+                const activeModels = allModels.filter(m => !state.hiddenModels[m]);
+
+                const mk = state.monthKey;
+                const yr = parseInt(mk.slice(0, 4), 10);
+                const mo = parseInt(mk.slice(5, 7), 10);
+
+                // 构造柱状图桶 buckets: [{ label, tick, total, requests, byModel }]
+                const buckets = [];
+                if (state.granularity === 'day') {
+                  const daysInMonth = new Date(yr, mo, 0).getDate();
+                  for (let d = 1; d <= daysInMonth; d++) {
+                    const key = mk + '-' + String(d).padStart(2, '0');
+                    const row = daily[key];
+                    const showTick = (d === 1 || d % 3 === 1 || d === daysInMonth);
+                    buckets.push({
+                      label: key,
+                      tick: showTick ? String(d) : '',
+                      requests: row ? row.requests : 0,
+                      byModel: row ? row.byModel : {}
+                    });
+                  }
+                } else if (state.granularity === 'week') {
+                  const daysInMonth = new Date(yr, mo, 0).getDate();
+                  for (let w = 0; w < 5; w++) {
+                    const dStart = w * 7 + 1;
+                    if (dStart > daysInMonth) break;
+                    const dEnd = Math.min(daysInMonth, dStart + 6);
+                    const agg = {};
+                    let req = 0;
+                    for (let d = dStart; d <= dEnd; d++) {
+                      const key = mk + '-' + String(d).padStart(2, '0');
+                      const row = daily[key];
+                      if (row) {
+                        req += row.requests;
+                        Object.entries(row.byModel || {}).forEach(([m, v]) => {
+                          if (!agg[m]) agg[m] = { total: 0, input: 0, cacheRead: 0, cacheWrite: 0, output: 0, requests: 0 };
+                          agg[m].total += v.total;
+                          agg[m].input += v.input;
+                          agg[m].cacheRead += v.cacheRead;
+                          agg[m].cacheWrite += v.cacheWrite;
+                          agg[m].output += v.output;
+                          agg[m].requests += v.requests;
+                        });
+                      }
+                    }
+                    buckets.push({ label: mk + ' (' + dStart + '-' + dEnd + ')', tick: 'W' + (w + 1), requests: req, byModel: agg });
+                  }
+                } else {
+                  for (let m = 1; m <= 12; m++) {
+                    const prefix = yr + '-' + String(m).padStart(2, '0');
+                    const agg = {};
+                    let req = 0;
+                    Object.keys(daily).forEach(k => {
+                      if (k.startsWith(prefix)) {
+                        const row = daily[k];
+                        req += row.requests;
+                        Object.entries(row.byModel || {}).forEach(([mod, v]) => {
+                          if (!agg[mod]) agg[mod] = { total: 0, input: 0, cacheRead: 0, cacheWrite: 0, output: 0, requests: 0 };
+                          agg[mod].total += v.total;
+                          agg[mod].input += v.input;
+                          agg[mod].cacheRead += v.cacheRead;
+                          agg[mod].cacheWrite += v.cacheWrite;
+                          agg[mod].output += v.output;
+                          agg[mod].requests += v.requests;
+                        });
+                      }
+                    });
+                    buckets.push({ label: prefix, tick: m + (state.lang === 'en' ? 'M' : '月'), requests: req, byModel: agg });
+                  }
+                }
+
+                // 计算周期总计、最大柱高度与模型明细表汇总
+                let periodTotal = 0;
+                let periodReqs = 0;
+                let maxBar = 1;
+                const tableAgg = {};
+
+                buckets.forEach(b => {
+                  let barSum = 0;
+                  periodReqs += b.requests;
+                  Object.entries(b.byModel || {}).forEach(([mod, v]) => {
+                    if (state.hiddenModels[mod]) return;
+                    barSum += v.total;
+                    periodTotal += v.total;
+                    if (!tableAgg[mod]) tableAgg[mod] = { total: 0, input: 0, cacheRead: 0, cacheWrite: 0, output: 0 };
+                    tableAgg[mod].total += v.total;
+                    tableAgg[mod].input += v.input;
+                    tableAgg[mod].cacheRead += v.cacheRead;
+                    tableAgg[mod].cacheWrite += v.cacheWrite;
+                    tableAgg[mod].output += v.output;
+                  });
+                  b._visibleTotal = barSum;
+                  if (barSum > maxBar) maxBar = barSum;
+                });
+
+                const yNiceMax = maxBar <= 1000 ? 1000 : Math.ceil(maxBar / Math.pow(10, Math.floor(Math.log10(maxBar)) - 1)) * Math.pow(10, Math.floor(Math.log10(maxBar)) - 1);
+
+                const legendHtml = allModels.map(m => {
+                  const muted = state.hiddenModels[m] ? ' muted' : '';
+                  const col = getModelColor(m, allModels);
+                  return '<div class="cg-legend-item' + muted + '" data-model="' + m + '"><span class="cg-legend-dot" style="background:' + col + '"></span><span>' + m + '</span></div>';
+                }).join('');
+
+                const yTicks = [0, 0.25, 0.5, 0.75, 1].map(frac => {
+                  const pctBottom = frac * 100;
+                  const valLabel = frac === 0 ? '0' : fmtTokShort(Math.round(yNiceMax * frac));
+                  return '<div class="cg-y-grid" style="bottom:' + pctBottom + '%"><span class="cg-y-label">' + valLabel + '</span></div>';
+                }).join('');
+
+                const barsHtml = buckets.map((b, idx) => {
+                  const hPct = b._visibleTotal > 0 ? Math.max(2, (b._visibleTotal / yNiceMax) * 100) : 0;
+                  const segs = activeModels.map(m => {
+                    const v = b.byModel?.[m]?.total || 0;
+                    if (!v || !b._visibleTotal) return '';
+                    const segPct = (v / b._visibleTotal) * 100;
+                    const col = getModelColor(m, allModels);
+                    return '<div style="height:' + segPct.toFixed(2) + '%;background:' + col + ';"></div>';
+                  }).join('');
+                  return '<div class="cg-bar-col" data-bidx="' + idx + '">' +
+                    '<div class="cg-bar-stack" style="height:' + hPct.toFixed(2) + '%;">' + segs + '</div>' +
+                  '</div>';
+                }).join('');
+
+                const xAxisHtml = buckets.map(b => '<div class="cg-x-tick">' + b.tick + '</div>').join('');
+
+                const tableRows = Object.keys(tableAgg).sort((a, b) => tableAgg[b].total - tableAgg[a].total).map(m => {
+                  const row = tableAgg[m];
+                  const col = getModelColor(m, allModels);
+                  return '<tr>' +
+                    '<td><span class="cg-legend-dot" style="background:' + col + ';margin-right:8px;"></span>' + m + '</td>' +
+                    '<td>' + fmtNum(row.total) + '</td>' +
+                    '<td>' + fmtNum(row.input) + '</td>' +
+                    '<td>' + fmtNum(row.cacheRead) + '</td>' +
+                    '<td>' + fmtNum(row.cacheWrite) + '</td>' +
+                    '<td>' + fmtNum(row.output) + '</td>' +
+                  '</tr>';
+                }).join('') || '<tr><td colspan="6" style="text-align:center;color:#64748b;padding:18px;">' + t('该时间段暂无记录', 'No usage in this period') + '</td></tr>';
+
+                const periodLabel = state.granularity === 'month' ? String(yr) : mk;
+
+                // 把 buckets 挂在容器上供悬浮提示取用
+                state._lastBuckets = buckets;
+
+                return buildSummaryHtml(data.summary) +
+                  '<div class="cg-panel">' +
+                    '<div class="cg-panel-head">' +
+                      '<div>' +
+                        '<div class="cg-panel-title">' + t('按模型统计', 'Usage by model') + '</div>' +
+                        '<div class="cg-panel-sub">' + fmtTokShort(periodTotal) + ' Token · ' + periodReqs + ' ' + t('次请求', 'requests') + '</div>' +
+                      '</div>' +
+                      '<div style="display:flex;align-items:center;gap:10px;">' +
+                        '<div style="display:flex;align-items:center;gap:8px;font-size:12px;font-weight:600;color:#cbd5e1;">' +
+                          '<button class="cg-icon-btn" id="cg-prev-period">‹</button>' +
+                          '<span>' + periodLabel + '</span>' +
+                          '<button class="cg-icon-btn" id="cg-next-period">›</button>' +
+                        '</div>' +
+                        '<div class="cg-seg-group">' +
+                          '<button class="cg-seg-btn' + (state.granularity === 'day' ? ' active' : '') + '" data-gran="day">' + t('天', 'Day') + '</button>' +
+                          '<button class="cg-seg-btn' + (state.granularity === 'week' ? ' active' : '') + '" data-gran="week">' + t('周', 'Week') + '</button>' +
+                          '<button class="cg-seg-btn' + (state.granularity === 'month' ? ' active' : '') + '" data-gran="month">' + t('月', 'Month') + '</button>' +
+                        '</div>' +
+                      '</div>' +
+                    '</div>' +
+                    '<div class="cg-legend">' + legendHtml + '</div>' +
+                    '<div class="cg-chart-area">' +
+                      '<div class="cg-chart-plot">' + yTicks + barsHtml + '</div>' +
+                      '<div class="cg-x-axis">' + xAxisHtml + '</div>' +
+                    '</div>' +
+                  '</div>' +
+                  '<div class="cg-panel" style="padding:10px 14px;">' +
+                    '<table class="cg-table">' +
+                      '<thead><tr>' +
+                        '<th>' + t('模型', 'Model') + '</th>' +
+                        '<th>' + t('总 Token', 'Total') + '</th>' +
+                        '<th>' + t('未缓存输入', 'Uncached Input') + '</th>' +
+                        '<th>' + t('缓存读取', 'Cache Read') + '</th>' +
+                        '<th>' + t('缓存写入', 'Cache Write') + '</th>' +
+                        '<th>' + t('输出', 'Output') + '</th>' +
+                      '</tr></thead>' +
+                      '<tbody>' + tableRows + '</tbody>' +
+                    '</table>' +
+                  '</div>';
+              }
+
+              function renderQuotasTab() {
+                const groups = state.quotas || [];
+                const activeGroupId = resolveQuotaGroupFromModel(window.__catgirl_last_active_model || '').groupId;
+
+                if (!groups.length) {
+                  return '<div class="cg-panel" style="text-align:center;padding:30px;color:#94a3b8;">' + t('未能读取账号模型额度（请确认 Antigravity 已登录并点击右上角刷新）', 'Quota summary unavailable. Click refresh to retry.') + '</div>';
+                }
+
+                const cardsHtml = groups.map(g => {
+                  const isActivePool = g.groupId === activeGroupId;
+                  const rowsHtml = (g.buckets || []).map(b => {
+                    const pct = (typeof b.pctNum === 'number') ? Math.max(0, Math.min(100, b.pctNum)) : 0;
+                    const color = pct <= 15 ? '#f43f5e' : (pct <= 35 ? '#f59e0b' : '#22c55e');
+                    const r = 13;
+                    const circ = 2 * Math.PI * r;
+                    const dashOffset = circ * (1 - pct / 100);
+                    const winLabel = b.window === 'weekly' ? t('每周额度 (Weekly limit)', 'Weekly limit') : (b.window === '5h' ? t('5小时额度 (5h limit)', '5h limit') : b.displayName);
+                    const resetPrefix = t('重置时间：', 'Resets in ');
+                    return '<div class="cg-quota-row">' +
+                      '<div>' +
+                        '<div style="font-size:12px;font-weight:600;color:#e2e8f0;">' + winLabel + '</div>' +
+                        '<div style="font-size:10.5px;color:#94a3b8;margin-top:2px;">' + resetPrefix + (b.countdown || '--') + '</div>' +
+                      '</div>' +
+                      '<div class="cg-quota-ring-wrap">' +
+                        '<span style="font-size:12.5px;font-weight:700;color:' + color + ';">' + Math.round(pct) + '% ' + t('剩余', 'left') + '</span>' +
+                        '<svg width="34" height="34" viewBox="0 0 34 34" style="transform:rotate(-90deg);">' +
+                          '<circle cx="17" cy="17" r="' + r + '" fill="none" stroke="rgba(255,255,255,0.1)" stroke-width="3.2"></circle>' +
+                          '<circle cx="17" cy="17" r="' + r + '" fill="none" stroke="' + color + '" stroke-width="3.2" stroke-linecap="round" stroke-dasharray="' + circ.toFixed(1) + '" stroke-dashoffset="' + dashOffset.toFixed(1) + '"></circle>' +
+                        '</svg>' +
+                      '</div>' +
+                    '</div>';
+                  }).join('');
+
+                  return '<div class="cg-quota-card' + (isActivePool ? ' is-active-pool' : '') + '">' +
+                    '<div class="cg-quota-card-head">' +
+                      '<div class="cg-quota-name">' + g.displayName + '</div>' +
+                      (isActivePool ? '<span class="hud-badge" style="background:rgba(16,185,129,0.2);border-color:rgba(52,211,153,0.5);color:#6ee7b7;">' + t('当前使用中', 'Active') + '</span>' : '') +
+                    '</div>' +
+                    '<div class="cg-quota-desc">' + (g.description || '') + '</div>' +
+                    rowsHtml +
+                  '</div>';
+                }).join('');
+
+                return '<div class="cg-panel">' +
+                  '<div class="cg-panel-head">' +
+                    '<div>' +
+                      '<div class="cg-panel-title">' + t('当前账号全模型配额概览', 'Account Model Quotas') + '</div>' +
+                      '<div class="cg-panel-sub">' + t('实时读取官方全部模型池剩余额度与重置倒计时，点击下方小按钮也可在悬浮仪表盘切换预览', 'Live remaining limits across all model pools') + '</div>' +
+                    '</div>' +
+                    '<button class="cg-icon-btn" id="cg-quota-sync-btn">↻ ' + t('立即刷新额度', 'Refresh Quotas') + '</button>' +
+                  '</div>' +
+                  '<div class="cg-quota-grid">' + cardsHtml + '</div>' +
+                '</div>';
+              }
+
+              function renderModal() {
+                modal.querySelector('#cg-m-title').textContent = t('用量统计与全模型额度', 'Token usage & Model quotas');
+                modal.querySelector('#cg-m-sub').textContent = t('本机 Antigravity · 当前账号', 'Local Antigravity · current account');
+                modal.querySelector('#cg-lang-btn').textContent = state.lang === 'en' ? '中' : 'EN';
+                modal.querySelector('#cg-tab-activity').textContent = t('活动概览', 'Activity');
+                modal.querySelector('#cg-tab-details').textContent = t('用量详情', 'Usage details');
+                modal.querySelector('#cg-tab-quotas').textContent = t('全部模型额度', 'Model quotas');
+
+                modal.querySelectorAll('.cg-tab-btn').forEach(btn => {
+                  btn.classList.toggle('active', btn.getAttribute('data-tab') === state.tab);
+                });
+
+                if (state.tab === 'activity') bodyElModal.innerHTML = renderActivityTab();
+                else if (state.tab === 'details') bodyElModal.innerHTML = renderDetailsTab();
+                else bodyElModal.innerHTML = renderQuotasTab();
+
+                bindBodyEvents();
+              }
+
+              function bindBodyEvents() {
+                // Activity events
+                bodyElModal.querySelectorAll('[data-heat]').forEach(btn => {
+                  btn.addEventListener('click', () => {
+                    state.heatMode = btn.getAttribute('data-heat');
+                    renderModal();
+                  });
+                });
+                const yrSel = bodyElModal.querySelector('#cg-year-sel');
+                if (yrSel) {
+                  yrSel.addEventListener('change', () => {
+                    state.year = parseInt(yrSel.value, 10);
+                    renderModal();
+                  });
+                }
+                bodyElModal.querySelectorAll('.cg-heat-cell[data-date]').forEach(cell => {
+                  cell.addEventListener('mouseenter', (ev) => {
+                    const dk = cell.getAttribute('data-date');
+                    const tot = cell.getAttribute('data-tot');
+                    const req = cell.getAttribute('data-req');
+                    if (dk) showTip(ev, '<div style="font-weight:700">' + dk + '</div><div>' + fmtNum(tot) + ' Token · ' + req + ' ' + t('次请求', 'requests') + '</div>');
+                  });
+                  cell.addEventListener('mouseleave', hideTip);
+                  cell.addEventListener('click', () => {
+                    const dk = cell.getAttribute('data-date');
+                    if (dk) {
+                      state.selectedDate = dk;
+                      state.monthKey = dk.slice(0, 7);
+                      renderModal();
+                    }
+                  });
+                });
+                const jumpBtn = bodyElModal.querySelector('#cg-jump-details-btn');
+                if (jumpBtn) {
+                  jumpBtn.addEventListener('click', () => {
+                    if (state.selectedDate) state.monthKey = state.selectedDate.slice(0, 7);
+                    state.tab = 'details';
+                    renderModal();
+                  });
+                }
+
+                // Details events
+                bodyElModal.querySelectorAll('[data-gran]').forEach(btn => {
+                  btn.addEventListener('click', () => {
+                    state.granularity = btn.getAttribute('data-gran');
+                    renderModal();
+                  });
+                });
+                const prevBtn = bodyElModal.querySelector('#cg-prev-period');
+                const nextBtn = bodyElModal.querySelector('#cg-next-period');
+                function shiftPeriod(delta) {
+                  const y = parseInt(state.monthKey.slice(0, 4), 10);
+                  const m = parseInt(state.monthKey.slice(5, 7), 10);
+                  if (state.granularity === 'month') {
+                    state.monthKey = (y + delta) + '-' + String(m).padStart(2, '0');
+                  } else {
+                    const nd = new Date(y, m - 1 + delta, 1);
+                    state.monthKey = nd.getFullYear() + '-' + String(nd.getMonth() + 1).padStart(2, '0');
+                  }
+                  renderModal();
+                }
+                if (prevBtn) prevBtn.addEventListener('click', () => shiftPeriod(-1));
+                if (nextBtn) nextBtn.addEventListener('click', () => shiftPeriod(1));
+
+                bodyElModal.querySelectorAll('.cg-legend-item[data-model]').forEach(item => {
+                  item.addEventListener('click', () => {
+                    const m = item.getAttribute('data-model');
+                    state.hiddenModels[m] = !state.hiddenModels[m];
+                    renderModal();
+                  });
+                });
+
+                bodyElModal.querySelectorAll('.cg-bar-col[data-bidx]').forEach(col => {
+                  col.addEventListener('mouseenter', (ev) => {
+                    const idx = parseInt(col.getAttribute('data-bidx'), 10);
+                    const b = state._lastBuckets?.[idx];
+                    if (!b) return;
+                    const lines = Object.entries(b.byModel || {})
+                      .filter(([m]) => !state.hiddenModels[m])
+                      .sort((a, c) => c[1].total - a[1].total)
+                      .map(([m, v]) => '<div>' + m + ': <b>' + fmtNum(v.total) + '</b></div>')
+                      .join('');
+                    showTip(ev, '<div style="font-weight:700;margin-bottom:3px;">' + b.label + ' (' + fmtNum(b._visibleTotal) + ' tok)</div>' + (lines || '<div style="color:#94a3b8">0 Token</div>'));
+                  });
+                  col.addEventListener('mouseleave', hideTip);
+                });
+
+                const quotaSyncBtn = bodyElModal.querySelector('#cg-quota-sync-btn');
+                if (quotaSyncBtn) {
+                  quotaSyncBtn.addEventListener('click', () => loadAllData(true));
+                }
+              }
+
+              modal.querySelectorAll('.cg-tab-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                  state.tab = btn.getAttribute('data-tab');
+                  renderModal();
+                });
+              });
+              modal.querySelector('#cg-lang-btn').addEventListener('click', () => {
+                state.lang = state.lang === 'zh' ? 'en' : 'zh';
+                renderModal();
+              });
+              modal.querySelector('#cg-refresh-btn').addEventListener('click', () => loadAllData(true));
+
+              loadAllData(false);
             }
             window.__catgirl_sync_dashboard = syncDashboardData;
 
@@ -3900,8 +5166,38 @@ async function main() {
                 const activeModel = detectActiveComposerModel() || 'Gemini 3.8 Flash High';
                 syncDashboardData(true);
                 if (window.__antigravityCatgirl?.showBubble) {
-                  window.__antigravityCatgirl.showBubble('⚡ 已实时刷新当前模型：' + activeModel + ' 配额喵~ 🔋', 2200);
+                  window.__antigravityCatgirl.showBubble('⚡ 已实时刷新模型配额喵~ 🔋', 2200);
                 }
+              });
+            }
+
+            // HUD 内快捷切换查看不同模型池额度
+            const hudQuotaSwitcher = document.getElementById('live-hud-quota-switcher');
+            if (hudQuotaSwitcher) {
+              hudQuotaSwitcher.querySelectorAll('.hud-quota-tab[data-pool]').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                  e.stopPropagation();
+                  window.__catgirl_quota_preview_group = btn.getAttribute('data-pool') || 'auto';
+                  syncDashboardData(true);
+                });
+              });
+            }
+
+            // HUD 快捷打开“全部模型额度”总览页签
+            const hudAllQuotasBtn = document.getElementById('live-hud-all-quotas-btn');
+            if (hudAllQuotasBtn) {
+              hudAllQuotasBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                openCatgirlAnalyticsModal('quotas');
+              });
+            }
+
+            // 图三位置入口按钮：打开“活动概览 + 用量详情 + 全模型额度”统计中心
+            const hudAnalyticsEntryBtn = document.getElementById('live-hud-open-analytics-btn');
+            if (hudAnalyticsEntryBtn) {
+              hudAnalyticsEntryBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                openCatgirlAnalyticsModal('activity');
               });
             }
 
@@ -3925,7 +5221,7 @@ async function main() {
                   btn.click();
                   showBubble("已呼出完整 Dashboard 用量分析面板喵~ 📊", 2500);
                 } else {
-                  showBubble("已展示最新 Token 统计数据喵~ ✨", 2000);
+                  openCatgirlAnalyticsModal('details');
                 }
               });
             }

@@ -26,7 +26,7 @@ function getPluginDir() {
 }
 
 function getLocalVersionInfo(dir) {
-  let version = '1.1.0';
+  let version = '1.2.0';
   let commitSha = '';
   try {
     const pluginJsonPath = path.join(dir, 'plugin.json');
