@@ -119,10 +119,32 @@ async function main() {
       } catch (e) {
         return;
       }
-      // 优先筛选真正的 Antigravity 主工作区窗口（排除 data: 开头的加载闪屏）
-      let pages = list.filter(t => t.type === 'page' && t.webSocketDebuggerUrl && t.url && !t.url.startsWith('data:'));
-      if (!pages || pages.length === 0) {
-        pages = list.filter(t => t.type === 'page' && t.webSocketDebuggerUrl);
+      // 仅筛选真正的 Antigravity 主工作区窗口，排除内置浏览器打开的外部/预览网页与 data: 闪屏
+      const isMainAntigravityPage = (t) => {
+        if (t.type !== 'page' || !t.webSocketDebuggerUrl || !t.url || t.url.startsWith('data:')) return false;
+        const title = t.title || '';
+        if (title.includes('Antigravity')) return true;
+        return t.url.startsWith('vscode-file://') || t.url.startsWith('file://');
+      };
+      const pages = list.filter(isMainAntigravityPage);
+      if (!isEnsure) {
+        const extraPages = list.filter(t => t.type === 'page' && t.webSocketDebuggerUrl && !isMainAntigravityPage(t) && t.url && !t.url.startsWith('data:'));
+        extraPages.forEach((extra) => {
+          try {
+            const cws = new WebSocket(extra.webSocketDebuggerUrl);
+            cws.onopen = () => {
+              cws.send(JSON.stringify({
+                id: 901,
+                method: 'Runtime.evaluate',
+                params: {
+                  expression: '(function(){if(!document.getElementById("antigravity-catgirl-dock"))return false;try{window.__catgirl_cleanup&&window.__catgirl_cleanup()}catch(e){}try{clearInterval(window.__catgirl_sync_timer)}catch(e){}try{window.__catgirl_sse&&window.__catgirl_sse.close()}catch(e){}["antigravity-catgirl-dock","antigravity-catgirl-contextmenu","antigravity-catgirl-analytics-modal","antigravity-catgirl-style"].forEach(id=>{const el=document.getElementById(id);if(el)el.remove()});return true})()'
+                }
+              }));
+            };
+            cws.onmessage = () => cws.close();
+            cws.onerror = () => cws.close();
+          } catch (e) {}
+        });
       }
       if (!pages || pages.length === 0) {
         if (!isEnsure) console.error('未找到可用的 Antigravity 界面');
@@ -241,6 +263,9 @@ async function main() {
               if (typeof window.__catgirl_stop_coding_fx === 'function') {
                 try { window.__catgirl_stop_coding_fx(); } catch(e) {}
               }
+              if (typeof window.__catgirl_stop_sprite_engine === 'function') {
+                try { window.__catgirl_stop_sprite_engine(); } catch(e) {}
+              }
             };
 
             // 注入更新样式
@@ -333,7 +358,24 @@ async function main() {
                 justify-content: center;
                 align-items: flex-end;
                 transform-origin: bottom center;
-                will-change: transform;
+                transition: transform 0.12s cubic-bezier(0.22, 1, 0.36, 1);
+              }
+              #catgirl-anim-stage.pet-pressed {
+                transform: scale(0.975);
+              }
+
+              #catgirl-ground-shadow {
+                position: absolute;
+                bottom: 2px;
+                left: 50%;
+                transform: translateX(-50%);
+                width: 64px;
+                height: 10px;
+                border-radius: 50%;
+                background: rgba(0, 0, 0, 0.34);
+                filter: blur(4px);
+                pointer-events: none;
+                z-index: 0;
               }
 
               #catgirl-img {
@@ -341,7 +383,6 @@ async function main() {
                 height: 100%;
                 object-fit: contain;
                 display: block;
-                filter: drop-shadow(0 8px 18px rgba(0, 0, 0, 0.45));
                 pointer-events: none;
                 user-select: none;
                 transition: opacity 0.15s ease, transform 0.2s ease;
@@ -354,61 +395,22 @@ async function main() {
                 width: 100%;
                 height: 100%;
                 object-fit: contain;
-                filter: drop-shadow(0 8px 18px rgba(0, 0, 0, 0.45));
                 pointer-events: none;
                 opacity: 0;
                 display: none;
                 transition: none !important;
               }
 
-              /* 互动 1：纯垂直跳跃 */
-              @keyframes lockedJump {
-                0% { transform: translateY(0) scale(1, 1); }
-                25% { transform: translateY(4px) scale(1.1, 0.9); }
-                50% { transform: translateY(-24px) scale(0.94, 1.08); }
-                75% { transform: translateY(0) scale(1.06, 0.94); }
-                90% { transform: translateY(-3px) scale(0.99, 1.01); }
-                100% { transform: translateY(0) scale(1, 1); }
-              }
-              .pet-anim-jump {
-                animation: lockedJump 0.45s cubic-bezier(0.25, 1, 0.5, 1) !important;
-              }
-
-              /* 互动 2：纯对称压扁回弹 */
-              @keyframes lockedSquash {
-                0% { transform: scale(1, 1); }
-                30% { transform: scale(1.24, 0.76) translateY(6px); }
-                55% { transform: scale(0.88, 1.15) translateY(-5px); }
-                75% { transform: scale(1.06, 0.96) translateY(1px); }
-                90% { transform: scale(0.99, 1.01); }
-                100% { transform: scale(1, 1) translateY(0); }
-              }
-              .pet-anim-squash {
-                animation: lockedSquash 0.48s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
-              }
-
-              /* 互动 3：轻柔对称微摆 */
-              @keyframes lockedWiggle {
-                0% { transform: rotate(0deg); }
-                25% { transform: rotate(-5deg); }
-                50% { transform: rotate(5deg); }
-                75% { transform: rotate(-2.5deg); }
-                100% { transform: rotate(0deg); }
-              }
-              .pet-anim-wiggle {
-                animation: lockedWiggle 0.4s ease-in-out !important;
-              }
-
-              /* Duang 弹性动画 */
-              @keyframes lockedDuang {
-                0% { transform: scale(1); }
-                25% { transform: scale(1.3, 0.72) translateY(6px); }
-                50% { transform: scale(0.85, 1.2) translateY(-18px); }
-                75% { transform: scale(1.08, 0.94); }
-                100% { transform: scale(1); }
-              }
-              .pet-anim-duang {
-                animation: lockedDuang 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
+              #catgirl-canvas {
+                position: absolute;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                pointer-events: none;
+                opacity: 0;
+                display: none;
+                z-index: 3;
               }
 
               /* 待机自然呼吸与眨眼动效 */
@@ -440,16 +442,15 @@ async function main() {
                 animation: petPanicTremble 0.26s infinite ease-in-out !important;
               }
 
-              /* 预警冷汗流汗粒子动画 */
+              /* 预警冷汗提示滴 */
               .sweat-drop {
                 position: absolute;
                 top: 14px;
                 right: 20px;
-                width: 9px;
-                height: 14px;
-                background: linear-gradient(180deg, #38bdf8 0%, #60a5fa 100%);
+                width: 8px;
+                height: 12px;
+                background: #38bdf8;
                 border-radius: 50% 50% 50% 50% / 60% 60% 40% 40%;
-                box-shadow: 0 0 6px rgba(56, 189, 248, 0.85);
                 opacity: 0;
                 animation: sweatDrip 1.2s infinite ease-in;
                 pointer-events: none;
@@ -528,23 +529,22 @@ async function main() {
                 animation: petConfusedTilt 2.8s infinite ease-in-out !important;
               }
 
-              /* 状态徽章 */
+              /* 状态角标（低干扰石墨底线性图标） */
               #catgirl-status-badge {
                 position: absolute;
                 bottom: 4px;
                 right: 4px;
-                width: 22px;
-                height: 22px;
+                width: 20px;
+                height: 20px;
                 border-radius: 50%;
-                background: #3b82f6;
-                border: 2px solid #ffffff;
-                color: #ffffff;
-                font-size: 11px;
-                font-weight: bold;
+                background: #19191b;
+                border: 1.5px solid rgba(237, 237, 237, 0.2);
+                color: #a1a1a6;
                 display: flex;
                 align-items: center;
                 justify-content: center;
-                box-shadow: 0 3px 8px rgba(0,0,0,0.35);
+                box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+                transition: border-color 0.16s cubic-bezier(0.22, 1, 0.36, 1), color 0.16s cubic-bezier(0.22, 1, 0.36, 1), background-color 0.16s cubic-bezier(0.22, 1, 0.36, 1);
               }
 
               /* 敲代码微震颤与身体律动 */
@@ -559,7 +559,7 @@ async function main() {
                 animation: codingJitter 0.38s infinite ease-in-out !important;
               }
 
-              /* 赛博全息发光键盘 (Holographic Cyber Keyboard) */
+              /* 哑光机械微键盘 (Tactile Mini Desk Keyboard) */
               #catgirl-holo-keyboard {
                 position: absolute;
                 bottom: 32px;
@@ -568,12 +568,11 @@ async function main() {
                 height: 26px;
                 transform: translateX(-50%) perspective(240px) rotateX(26deg);
                 transform-origin: center bottom;
-                background: linear-gradient(135deg, rgba(56, 189, 248, 0.32) 0%, rgba(168, 85, 247, 0.36) 100%);
-                border: 1px solid rgba(125, 211, 252, 0.8);
-                border-radius: 4px;
-                box-shadow: 0 0 14px rgba(56, 189, 248, 0.6), inset 0 0 8px rgba(168, 85, 247, 0.5);
-                backdrop-filter: blur(1.5px);
-                padding: 2.5px 3.5px;
+                background: rgba(20, 20, 22, 0.94);
+                border: 1px solid rgba(237, 237, 237, 0.18);
+                border-radius: 5px;
+                box-shadow: 0 4px 10px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+                padding: 3px 4px;
                 box-sizing: border-box;
                 display: flex;
                 flex-direction: column;
@@ -581,12 +580,12 @@ async function main() {
                 pointer-events: none;
                 z-index: 10;
                 opacity: 1;
-                transition: opacity 0.28s ease, transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+                transition: opacity 0.2s cubic-bezier(0.22, 1, 0.36, 1), transform 0.22s cubic-bezier(0.22, 1, 0.36, 1);
               }
 
               #catgirl-holo-keyboard.holo-hidden {
                 opacity: 0;
-                transform: translateX(-50%) perspective(240px) rotateX(26deg) scale(0.65) translateY(10px);
+                transform: translateX(-50%) perspective(240px) rotateX(26deg) scale(0.85) translateY(8px);
                 pointer-events: none;
               }
 
@@ -605,8 +604,7 @@ async function main() {
                 display: flex;
                 flex-direction: column;
                 align-items: center;
-                transition: transform 0.08s cubic-bezier(0.1, 0.9, 0.2, 1);
-                filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.35));
+                transition: transform 0.08s cubic-bezier(0.22, 1, 0.36, 1);
               }
               #typing-hand-left {
                 left: 10px;
@@ -619,20 +617,19 @@ async function main() {
               .hand-cuff {
                 width: 14px;
                 height: 6px;
-                background: linear-gradient(135deg, #3b82f6, #8b5cf6);
-                border-radius: 4px 4px 2px 2px;
-                border: 1px solid rgba(255, 255, 255, 0.7);
-                box-shadow: 0 0 6px rgba(139, 92, 246, 0.6);
+                background: #27272a;
+                border-radius: 3px 3px 2px 2px;
+                border: 1px solid rgba(237, 237, 237, 0.28);
               }
               .hand-palm {
                 width: 13px;
                 height: 9px;
-                background: #fff5f0;
+                background: #f5ebe6;
                 border-radius: 4px 4px 6px 6px;
                 margin-top: -1px;
-                border: 1px solid rgba(254, 205, 211, 0.9);
+                border: 1px solid rgba(231, 204, 196, 0.9);
                 position: relative;
-                box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+                box-shadow: 0 1px 2px rgba(0, 0, 0, 0.14);
               }
               .hand-palm::after {
                 content: '';
@@ -640,57 +637,42 @@ async function main() {
                 bottom: 1.5px;
                 left: 50%;
                 transform: translateX(-50%);
-                width: 7px;
-                height: 3px;
-                background: #f472b6;
-                border-radius: 3px;
-                opacity: 0.8;
+                width: 6px;
+                height: 2.5px;
+                background: #d8a7b1;
+                border-radius: 2px;
+                opacity: 0.75;
               }
               /* 敲击瞬间准确下压 */
               .typing-hand.hand-down {
-                transform: translateY(4.5px) scale(0.92) !important;
+                transform: translateY(4px) scale(0.94) !important;
               }
 
-              /* 键盘发光网格按键 */
+              /* 机械微键帽与按压下沉反馈 */
               .holo-key-row {
                 display: flex;
-                gap: 1.5px;
+                gap: 2px;
                 width: 100%;
                 justify-content: center;
               }
               .holo-key {
                 flex: 1;
-                height: 4.5px;
-                background: rgba(255, 255, 255, 0.38);
-                border-radius: 1px;
-                box-shadow: 0 0 2px rgba(56, 189, 248, 0.8);
-                transition: background 0.08s ease, transform 0.08s ease, box-shadow 0.08s ease;
+                height: 4px;
+                background: #2e2e32;
+                border-top: 1px solid rgba(237, 237, 237, 0.14);
+                border-radius: 1.5px;
+                transition: background-color 0.08s ease, transform 0.08s ease, border-color 0.08s ease;
               }
               .holo-key.active-tap {
-                background: #ffffff !important;
-                transform: scale(1.25) translateY(-1px);
-                box-shadow: 0 0 8px #ffffff, 0 0 14px #38bdf8 !important;
+                background: #38bdf8 !important;
+                border-top-color: #bae6fd;
+                transform: translateY(1px);
               }
               .holo-key-space {
                 flex: 3;
               }
 
-              /* 全息底部扫描微光 */
-              .holo-scanline {
-                position: absolute;
-                inset: 0;
-                background: linear-gradient(180deg, transparent 0%, rgba(56, 189, 248, 0.25) 50%, transparent 100%);
-                animation: holoScan 1.6s linear infinite;
-                pointer-events: none;
-                border-radius: 4px;
-              }
-              @keyframes holoScan {
-                0% { transform: translateY(-100%); opacity: 0; }
-                50% { opacity: 0.8; }
-                100% { transform: translateY(100%); opacity: 0; }
-              }
-
-              /* 飞溅代码粒子容器与动画 */
+              /* 轻量化打字字符提示（无荧光阴影） */
               #catgirl-code-particles {
                 position: absolute;
                 inset: 0;
@@ -701,95 +683,97 @@ async function main() {
               .code-particle {
                 position: absolute;
                 font-family: 'JetBrains Mono', 'Fira Code', Consolas, Monaco, monospace;
-                font-weight: 800;
-                font-size: 9.5px;
+                font-weight: 500;
+                font-size: 9px;
                 line-height: 1;
                 white-space: nowrap;
                 user-select: none;
                 pointer-events: none;
-                animation: particleFloat 0.9s cubic-bezier(0.2, 0.8, 0.4, 1) forwards;
+                animation: particleFloat 0.85s cubic-bezier(0.22, 1, 0.36, 1) forwards;
               }
               @keyframes particleFloat {
                 0% {
                   opacity: 0;
-                  transform: translate(0, 0) scale(0.65);
+                  transform: translate(0, 0);
                 }
                 25% {
-                  opacity: 1;
-                  transform: translate(var(--p-dx, 0px), -15px) scale(1.1);
+                  opacity: 0.85;
+                  transform: translate(var(--p-dx, 0px), -12px);
                 }
                 100% {
                   opacity: 0;
-                  transform: translate(calc(var(--p-dx, 0px) * 1.6), -48px) scale(0.85);
+                  transform: translate(calc(var(--p-dx, 0px) * 1.4), -36px);
                 }
               }
 
-              /* 肚皮 Token 水位精致迷你胶囊（与桌宠宽度严格贴合） */
+              /* 肚皮 Token 水位精致胶囊（浅色石墨中性阶，对齐 4px 栅格） */
               #live-catgirl-token-pill {
-                margin-top: -6px;
-                padding: 4px 6px;
-                border-radius: 9px;
-                background: #ffffff !important;
-                border: 1px solid rgba(226, 232, 240, 0.95) !important;
-                color: #0f172a !important;
+                margin-top: -4px;
+                padding: 4px 8px;
+                border-radius: 8px;
+                background: #fafafa !important;
+                border: 1px solid rgba(23, 23, 23, 0.12) !important;
+                color: #171717 !important;
                 font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif;
                 cursor: pointer;
-                width: 96px;
+                width: 104px;
                 box-sizing: border-box;
                 display: flex;
                 flex-direction: column;
-                gap: 2.5px;
-                box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08), 0 1px 2px rgba(15, 23, 42, 0.04);
-                backdrop-filter: blur(12px);
-                transition: transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.18s ease, border-color 0.18s ease;
+                gap: 4px;
+                box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+                transition: background-color 0.15s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.15s cubic-bezier(0.22, 1, 0.36, 1), transform 0.15s cubic-bezier(0.22, 1, 0.36, 1);
                 user-select: none;
               }
               #live-catgirl-token-pill:hover {
-                transform: translateY(-2px) scale(1.04);
-                box-shadow: 0 8px 18px rgba(15, 23, 42, 0.12), 0 2px 4px rgba(15, 23, 42, 0.06);
-                border-color: #cbd5e1 !important;
+                background: #ffffff !important;
+                border-color: rgba(23, 23, 23, 0.24) !important;
+              }
+              #live-catgirl-token-pill:active {
+                transform: scale(0.98);
               }
               .pill-row-top {
                 display: flex;
                 align-items: center;
-                gap: 3px;
+                gap: 4px;
                 line-height: 1;
                 width: 100%;
               }
               #live-catgirl-token-dot {
-                width: 5px;
-                height: 5px;
+                width: 6px;
+                height: 6px;
                 border-radius: 50%;
-                background: #10b981;
-                box-shadow: 0 0 5px rgba(16, 185, 129, 0.45);
+                background: #16a34a;
                 flex-shrink: 0;
-                transition: background 0.25s ease, box-shadow 0.25s ease;
+                transition: background-color 0.2s cubic-bezier(0.22, 1, 0.36, 1);
               }
               .pill-label {
-                font-size: 8.5px;
-                font-weight: 600;
-                color: #64748b;
+                font-size: 9px;
+                font-weight: 500;
+                color: #525252;
                 flex-shrink: 0;
               }
               .pill-val-bold {
-                font-size: 9.5px;
-                font-weight: 700;
-                color: #0f172a;
-                letter-spacing: -0.2px;
+                font-size: 10px;
+                font-weight: 600;
+                color: #171717;
+                font-variant-numeric: tabular-nums;
+                font-feature-settings: "tnum";
                 flex-shrink: 0;
               }
               .pill-val-sub {
-                font-size: 8px;
-                font-weight: 500;
-                color: #94a3b8;
+                font-size: 9px;
+                font-weight: 400;
+                color: #737373;
                 margin-left: auto;
                 white-space: nowrap;
-                letter-spacing: -0.1px;
+                font-variant-numeric: tabular-nums;
+                font-feature-settings: "tnum";
               }
               .pill-track {
                 width: 100%;
                 height: 2px;
-                background: #f1f5f9;
+                background: #e5e5e5;
                 border-radius: 1px;
                 overflow: hidden;
               }
@@ -797,41 +781,42 @@ async function main() {
                 height: 100%;
                 width: 0%;
                 border-radius: 1px;
-                background: linear-gradient(90deg, #3b82f6, #6366f1);
-                transition: width 0.3s ease, background 0.3s ease;
+                background: #171717;
+                transition: width 0.25s cubic-bezier(0.22, 1, 0.36, 1), background-color 0.25s cubic-bezier(0.22, 1, 0.36, 1);
               }
               .pill-row-bottom {
                 display: flex;
                 align-items: center;
-                gap: 3px;
+                gap: 4px;
                 line-height: 1;
                 width: 100%;
-                margin-top: 0.5px;
               }
               .pill-badge {
                 display: inline-flex;
                 align-items: center;
                 justify-content: center;
-                line-height: 1.15;
+                line-height: 1.2;
               }
               .pill-badge-quota {
-                background: #eff6ff;
-                color: #2563eb;
-                border: 1px solid #dbeafe;
-                font-size: 8px;
-                font-weight: 600;
-                padding: 1px 3px;
+                background: #f4f4f5;
+                color: #171717;
+                border: 1px solid rgba(23, 23, 23, 0.08);
+                font-size: 9px;
+                font-weight: 500;
+                font-variant-numeric: tabular-nums;
+                font-feature-settings: "tnum";
+                padding: 1px 4px;
                 border-radius: 4px;
                 white-space: nowrap;
                 flex-shrink: 0;
               }
               .pill-badge-model {
-                background: #f8fafc;
-                color: #475569;
-                border: 1px solid #e2e8f0;
-                font-size: 8px;
+                background: #f4f4f5;
+                color: #525252;
+                border: 1px solid rgba(23, 23, 23, 0.08);
+                font-size: 9px;
                 font-weight: 500;
-                padding: 1px 3px;
+                padding: 1px 4px;
                 border-radius: 4px;
                 white-space: nowrap;
                 overflow: hidden;
@@ -840,35 +825,37 @@ async function main() {
                 margin-left: auto;
               }
 
-              /* 猫娘专属 Token & 额度仪表盘 HUD 卡片（独立紧凑型防遮挡设计） */
+              /* 猫娘专属 Token & 额度仪表盘 HUD 卡片（Graphite 中性面板 + 四角视口自适应避让） */
               #catgirl-dashboard-hud {
-                position: absolute;
-                right: calc(100% + 12px);
-                bottom: 0;
-                width: 242px;
-                background: rgba(15, 23, 42, 0.96);
-                border: 1px solid rgba(255, 255, 255, 0.16);
+                position: fixed;
+                width: 248px;
+                background: #141415;
+                border: 1px solid rgba(237, 237, 237, 0.12);
                 border-radius: 14px;
-                padding: 10px 12px;
-                box-shadow: 0 16px 40px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(255, 255, 255, 0.08);
-                backdrop-filter: blur(20px);
+                padding: 12px;
+                box-shadow: 0 12px 32px rgba(0, 0, 0, 0.55);
                 font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Microsoft YaHei", sans-serif;
-                color: #f1f5f9;
-                z-index: 99999999;
-                transform-origin: bottom right;
+                color: #ededed;
+                z-index: 100000001;
+                transform-origin: top left;
+                max-height: calc(100vh - 20px);
+                overflow-y: auto;
+                overflow-x: hidden;
+                scrollbar-width: thin;
+                scrollbar-color: rgba(237, 237, 237, 0.18) transparent;
                 user-select: none;
-                transition: opacity 0.22s ease-out, transform 0.22s cubic-bezier(0.34, 1.56, 0.64, 1);
+                transition: opacity 0.18s cubic-bezier(0.22, 1, 0.36, 1), transform 0.18s cubic-bezier(0.22, 1, 0.36, 1);
               }
               #catgirl-dashboard-hud.hud-hidden {
                 opacity: 0;
                 pointer-events: none;
-                transform: translateX(12px) scale(calc(1 / var(--pet-scale, 1) * 0.8));
+                transform: translateY(4px) scale(0.84);
                 display: none;
               }
               #catgirl-dashboard-hud.hud-visible {
                 opacity: 1;
                 pointer-events: auto;
-                transform: translateX(0) scale(calc(1 / var(--pet-scale, 1) * 0.86));
+                transform: translateY(0) scale(0.86);
                 display: block;
               }
               .hud-header {
@@ -876,33 +863,39 @@ async function main() {
                 align-items: center;
                 justify-content: space-between;
                 padding-bottom: 8px;
-                border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-                margin-bottom: 10px;
+                border-bottom: 1px solid rgba(237, 237, 237, 0.08);
+                margin-bottom: 12px;
               }
               .hud-title-box {
                 display: flex;
                 align-items: center;
-                gap: 6px;
+                gap: 8px;
+              }
+              .hud-title-icon {
+                color: #85858b;
+                display: inline-flex;
+                align-items: center;
               }
               .hud-title {
-                font-size: 12px;
-                font-weight: 700;
-                color: #f8fafc;
-                letter-spacing: -0.2px;
+                font-size: 13px;
+                font-weight: 600;
+                color: #ededed;
               }
               .hud-actions {
                 display: flex;
                 align-items: center;
-                gap: 6px;
+                gap: 4px;
               }
               .hud-badge {
-                font-size: 9.5px;
-                padding: 1.5px 6px;
-                border-radius: 8px;
-                background: rgba(59, 130, 246, 0.2);
-                border: 1px solid rgba(96, 165, 250, 0.4);
-                color: #93c5fd;
+                font-size: 10px;
+                padding: 2px 6px;
+                border-radius: 4px;
+                background: #232325;
+                border: 1px solid rgba(237, 237, 237, 0.1);
+                color: #a1a1a6;
                 font-weight: 500;
+                font-variant-numeric: tabular-nums;
+                font-feature-settings: "tnum";
                 max-width: 120px;
                 white-space: nowrap;
                 overflow: hidden;
@@ -910,235 +903,245 @@ async function main() {
               }
               .hud-btn-icon {
                 background: transparent;
-                border: none;
-                color: #94a3b8;
-                font-size: 13px;
+                border: 1px solid transparent;
+                color: #85858b;
+                width: 24px;
+                height: 24px;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
                 cursor: pointer;
-                line-height: 1;
-                padding: 2px 5px;
-                border-radius: 4px;
-                transition: all 0.15s ease;
+                border-radius: 6px;
+                transition: background-color 0.15s cubic-bezier(0.22, 1, 0.36, 1), color 0.15s cubic-bezier(0.22, 1, 0.36, 1);
               }
               .hud-btn-icon:hover {
-                color: #fff;
-                background: rgba(255, 255, 255, 0.15);
+                color: #ededed;
+                background: #232325;
               }
               .hud-section {
-                margin-bottom: 10px;
+                margin-bottom: 12px;
+              }
+              .hud-section:last-of-type {
+                margin-bottom: 0;
               }
               .hud-section-title {
                 display: flex;
                 justify-content: space-between;
                 align-items: center;
-                font-size: 10.5px;
-                font-weight: 600;
-                color: #cbd5e1;
-                margin-bottom: 5px;
+                font-size: 11px;
+                font-weight: 500;
+                color: #a1a1a6;
+                margin-bottom: 8px;
+              }
+              .hud-section-title-left {
+                display: flex;
+                align-items: center;
+                gap: 6px;
+                color: #ededed;
+                font-weight: 500;
               }
               .hud-group-pill {
-                background: rgba(30, 41, 59, 0.85);
-                border: 1px solid rgba(56, 189, 248, 0.35);
-                color: #38bdf8;
-                font-size: 9.5px;
-                font-weight: 600;
-                padding: 1px 6px;
-                border-radius: 9999px;
+                background: #19191b;
+                border: 1px solid rgba(237, 237, 237, 0.12);
+                color: #a1a1a6;
+                font-size: 10px;
+                font-weight: 500;
+                padding: 2px 6px;
+                border-radius: 4px;
                 cursor: pointer;
                 display: inline-flex;
                 align-items: center;
-                gap: 3px;
-                transition: all 0.16s ease;
+                gap: 4px;
+                transition: background-color 0.15s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.15s cubic-bezier(0.22, 1, 0.36, 1), color 0.15s cubic-bezier(0.22, 1, 0.36, 1);
                 user-select: none;
                 line-height: 1.3;
               }
               .hud-group-pill:hover {
-                background: rgba(56, 189, 248, 0.22);
-                border-color: #38bdf8;
-                color: #7dd3fc;
-                box-shadow: 0 0 8px rgba(56, 189, 248, 0.3);
-                transform: translateY(-0.5px);
+                background: #232325;
+                border-color: rgba(237, 237, 237, 0.22);
+                color: #ededed;
               }
               .hud-group-pill:active {
-                transform: scale(0.96);
-              }
-              .hud-group-pill-arrow {
-                font-size: 8px;
-                opacity: 0.75;
+                transform: scale(0.98);
               }
               .hud-gauge-row {
-                margin-bottom: 6px;
+                margin-bottom: 8px;
               }
               .hud-gauge-info {
                 display: flex;
                 justify-content: space-between;
-                font-size: 10px;
-                margin-bottom: 3px;
+                font-size: 11px;
+                margin-bottom: 4px;
               }
               .hud-gauge-info .hud-label {
-                color: #94a3b8;
+                color: #a1a1a6;
               }
               .hud-gauge-info .hud-val {
-                color: #38bdf8;
-                font-weight: 700;
-                font-family: monospace;
+                color: #ededed;
+                font-weight: 600;
+                font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+                font-variant-numeric: tabular-nums;
+                font-feature-settings: "tnum";
               }
               .hud-track {
                 width: 100%;
-                height: 5px;
-                border-radius: 3px;
-                background: rgba(255, 255, 255, 0.1);
+                height: 4px;
+                border-radius: 2px;
+                background: rgba(237, 237, 237, 0.1);
                 overflow: hidden;
                 position: relative;
               }
               .hud-fill {
                 height: 100%;
-                border-radius: 3px;
-                transition: width 0.35s ease;
+                border-radius: 2px;
+                transition: width 0.28s cubic-bezier(0.22, 1, 0.36, 1), background-color 0.2s cubic-bezier(0.22, 1, 0.36, 1);
               }
               .hud-fill-five {
-                background: linear-gradient(90deg, #38bdf8, #818cf8);
-                box-shadow: 0 0 8px rgba(56, 189, 248, 0.4);
+                background: #4cc38a;
               }
               .hud-fill-week {
-                background: linear-gradient(90deg, #34d399, #38bdf8);
-                box-shadow: 0 0 8px rgba(52, 211, 153, 0.4);
+                background: #38bdf8;
               }
               .hud-fill-ctx {
-                background: linear-gradient(90deg, #10b981, #f59e0b);
-                box-shadow: 0 0 8px rgba(245, 158, 11, 0.4);
+                background: #38bdf8;
               }
               .hud-timer-row {
                 display: flex;
                 justify-content: space-between;
-                font-size: 9px;
-                color: #64748b;
-                margin-top: 2px;
+                align-items: center;
+                font-size: 10px;
+                color: #85858b;
+                margin-top: 4px;
               }
               .hud-timer {
-                color: #94a3b8;
-                font-family: monospace;
+                color: #a1a1a6;
+                font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+                font-variant-numeric: tabular-nums;
+                font-feature-settings: "tnum";
               }
               .hud-grid {
                 display: grid;
                 grid-template-columns: 1fr 1fr;
-                gap: 5px;
+                gap: 6px;
               }
               .hud-metric-card {
-                background: rgba(255, 255, 255, 0.05);
-                border: 1px solid rgba(255, 255, 255, 0.07);
+                background: #19191b;
+                border: 1px solid rgba(237, 237, 237, 0.08);
                 border-radius: 8px;
-                padding: 5px 8px;
+                padding: 8px;
                 display: flex;
                 flex-direction: column;
-                gap: 1px;
+                gap: 2px;
               }
               .hud-metric-label {
-                font-size: 9px;
-                color: #94a3b8;
+                font-size: 10px;
+                color: #85858b;
               }
               .hud-metric-val {
                 font-size: 13px;
-                font-weight: 700;
-                color: #f1f5f9;
-                font-family: monospace;
-                letter-spacing: -0.3px;
+                font-weight: 600;
+                color: #ededed;
+                font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+                font-variant-numeric: tabular-nums;
+                font-feature-settings: "tnum";
               }
               .hud-footer {
                 padding-top: 8px;
-                border-top: 1px solid rgba(255, 255, 255, 0.1);
-                display: flex;
-                gap: 6px;
+                margin-top: 12px;
+                border-top: 1px solid rgba(237, 237, 237, 0.08);
+                display: none;
+                gap: 8px;
               }
               .hud-btn-primary {
                 flex: 1;
-                background: linear-gradient(135deg, #2563eb, #3b82f6);
-                color: #fff;
-                border: none;
-                border-radius: 8px;
-                padding: 6.5px 10px;
+                background: #232325;
+                color: #ededed;
+                border: 1px solid rgba(237, 237, 237, 0.14);
+                border-radius: 6px;
+                padding: 6px 12px;
                 font-size: 11px;
-                font-weight: 600;
+                font-weight: 500;
                 cursor: pointer;
                 display: flex;
                 align-items: center;
                 justify-content: center;
                 gap: 6px;
-                transition: all 0.18s ease;
-                box-shadow: 0 4px 12px rgba(37, 99, 235, 0.35);
+                transition: background-color 0.15s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.15s cubic-bezier(0.22, 1, 0.36, 1), transform 0.12s cubic-bezier(0.22, 1, 0.36, 1);
               }
               .hud-btn-primary:hover {
-                background: linear-gradient(135deg, #1d4ed8, #2563eb);
-                transform: translateY(-1px);
-                box-shadow: 0 6px 16px rgba(37, 99, 235, 0.5);
+                background: #2c2c2f;
+                border-color: rgba(237, 237, 237, 0.24);
+              }
+              .hud-btn-primary:active {
+                transform: scale(0.98);
               }
               .hud-analytics-entry-btn {
-                background: rgba(59, 130, 246, 0.16);
-                border: 1px solid rgba(96, 165, 250, 0.36);
-                color: #93c5fd;
-                font-size: 9px;
-                font-weight: 600;
-                padding: 1.5px 6px;
-                border-radius: 999px;
+                background: #232325;
+                border: 1px solid rgba(237, 237, 237, 0.14);
+                color: #ededed;
+                font-size: 10.5px;
+                font-weight: 500;
+                padding: 3px 8px;
+                border-radius: 6px;
                 cursor: pointer;
                 display: inline-flex;
                 align-items: center;
-                gap: 3px;
-                transition: all 0.15s ease;
+                gap: 4px;
+                transition: background-color 0.15s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.15s cubic-bezier(0.22, 1, 0.36, 1);
               }
               .hud-analytics-entry-btn:hover {
-                background: rgba(59, 130, 246, 0.34);
-                border-color: #60a5fa;
+                background: #2c2c2f;
+                border-color: #38bdf8;
                 color: #ffffff;
-                transform: translateY(-0.5px);
               }
               .hud-quota-switcher {
                 display: flex;
                 align-items: center;
-                gap: 3px;
-                margin-bottom: 6px;
+                gap: 4px;
+                margin-bottom: 8px;
                 flex-wrap: wrap;
               }
               .hud-quota-tab {
-                background: rgba(255, 255, 255, 0.05);
-                border: 1px solid rgba(255, 255, 255, 0.1);
-                color: #94a3b8;
-                font-size: 8.5px;
-                font-weight: 600;
-                padding: 1.5px 5px;
-                border-radius: 5px;
+                background: #19191b;
+                border: 1px solid rgba(237, 237, 237, 0.08);
+                color: #85858b;
+                font-size: 10px;
+                font-weight: 500;
+                padding: 2px 6px;
+                border-radius: 4px;
                 cursor: pointer;
-                transition: all 0.14s ease;
+                transition: background-color 0.14s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.14s cubic-bezier(0.22, 1, 0.36, 1), color 0.14s cubic-bezier(0.22, 1, 0.36, 1);
               }
               .hud-quota-tab:hover {
-                background: rgba(56, 189, 248, 0.15);
-                color: #e2e8f0;
+                background: #232325;
+                color: #ededed;
               }
               .hud-quota-tab.active {
-                background: rgba(56, 189, 248, 0.24);
-                border-color: rgba(56, 189, 248, 0.6);
-                color: #7dd3fc;
+                background: #232325;
+                border-color: rgba(56, 189, 248, 0.45);
+                color: #38bdf8;
               }
 
-              /* 全量用量统计与全模型额度中心弹窗（独立于宠物缩放） */
+              /* 全量用量统计与全模型额度中心弹窗（Graphite 中性阶 + 统一 #38bdf8 强调色） */
               #catgirl-analytics-modal {
                 position: fixed;
                 inset: 0;
                 z-index: 100000010;
-                background: rgba(6, 10, 20, 0.72);
-                backdrop-filter: blur(8px);
+                background: rgba(10, 10, 11, 0.76);
+                backdrop-filter: blur(6px);
                 display: flex;
                 align-items: center;
                 justify-content: center;
                 font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Microsoft YaHei", sans-serif;
-                color: #e2e8f0;
-                padding: 18px;
+                color: #ededed;
+                padding: 16px;
                 box-sizing: border-box;
               }
               .cg-modal-card {
                 width: min(940px, 94vw);
                 max-height: min(690px, 90vh);
-                background: #141824;
-                border: 1px solid rgba(148, 163, 184, 0.2);
+                background: #141415;
+                border: 1px solid rgba(237, 237, 237, 0.1);
                 border-radius: 16px;
                 box-shadow: 0 24px 64px rgba(0, 0, 0, 0.72);
                 display: flex;
@@ -1147,27 +1150,20 @@ async function main() {
               }
               .cg-modal-head {
                 display: flex;
-                align-items: flex-start;
+                align-items: center;
                 justify-content: space-between;
-                padding: 16px 20px 10px;
-                border-bottom: 1px solid rgba(148, 163, 184, 0.12);
-              }
-              .cg-modal-eyebrow {
-                font-size: 10px;
-                letter-spacing: 1px;
-                color: #94a3b8;
-                font-weight: 600;
+                padding: 16px 20px 12px;
+                border-bottom: 1px solid rgba(237, 237, 237, 0.08);
               }
               .cg-modal-title {
-                font-size: 20px;
-                font-weight: 700;
-                color: #f8fafc;
-                margin-top: 2px;
+                font-size: 18px;
+                font-weight: 600;
+                color: #ededed;
               }
               .cg-modal-sub {
-                font-size: 11px;
-                color: #94a3b8;
-                margin-top: 3px;
+                font-size: 12px;
+                color: #85858b;
+                margin-top: 4px;
                 display: flex;
                 align-items: center;
                 gap: 6px;
@@ -1176,147 +1172,152 @@ async function main() {
                 width: 6px;
                 height: 6px;
                 border-radius: 50%;
-                background: #10b981;
+                background: #4cc38a;
                 display: inline-block;
               }
               .cg-head-actions {
                 display: flex;
                 align-items: center;
-                gap: 6px;
+                gap: 8px;
               }
               .cg-icon-btn {
-                background: rgba(255, 255, 255, 0.05);
-                border: 1px solid rgba(148, 163, 184, 0.22);
-                color: #cbd5e1;
-                border-radius: 7px;
+                background: #19191b;
+                border: 1px solid rgba(237, 237, 237, 0.1);
+                color: #a1a1a6;
+                border-radius: 8px;
                 height: 28px;
                 min-width: 28px;
                 padding: 0 8px;
-                font-size: 11.5px;
-                font-weight: 600;
+                font-size: 12px;
+                font-weight: 500;
                 cursor: pointer;
                 display: inline-flex;
                 align-items: center;
                 justify-content: center;
-                transition: all 0.15s ease;
+                transition: background-color 0.15s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.15s cubic-bezier(0.22, 1, 0.36, 1), color 0.15s cubic-bezier(0.22, 1, 0.36, 1);
               }
               .cg-icon-btn:hover {
-                background: rgba(255, 255, 255, 0.12);
-                color: #fff;
+                background: #232325;
+                border-color: rgba(237, 237, 237, 0.18);
+                color: #ededed;
               }
               .cg-tabs {
                 display: flex;
                 gap: 20px;
                 padding: 0 20px;
-                border-bottom: 1px solid rgba(148, 163, 184, 0.12);
+                border-bottom: 1px solid rgba(237, 237, 237, 0.08);
               }
               .cg-tab-btn {
                 background: transparent;
                 border: none;
                 border-bottom: 2px solid transparent;
-                color: #94a3b8;
-                font-size: 12.5px;
-                font-weight: 600;
-                padding: 10px 2px;
+                color: #85858b;
+                font-size: 13px;
+                font-weight: 500;
+                padding: 12px 2px;
                 cursor: pointer;
-                transition: all 0.15s ease;
+                transition: color 0.15s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.15s cubic-bezier(0.22, 1, 0.36, 1);
               }
               .cg-tab-btn:hover {
-                color: #e2e8f0;
+                color: #ededed;
               }
               .cg-tab-btn.active {
-                color: #f8fafc;
-                border-bottom-color: #6366f1;
+                color: #ededed;
+                border-bottom-color: #38bdf8;
               }
               .cg-modal-body {
-                padding: 14px 20px 18px;
+                padding: 16px 20px 20px;
                 overflow-y: auto;
                 display: flex;
                 flex-direction: column;
-                gap: 14px;
+                gap: 16px;
               }
               .cg-summary-grid {
                 display: grid;
                 grid-template-columns: repeat(4, 1fr);
-                background: rgba(255, 255, 255, 0.03);
-                border: 1px solid rgba(148, 163, 184, 0.16);
+                background: #19191b;
+                border: 1px solid rgba(237, 237, 237, 0.08);
                 border-radius: 12px;
                 padding: 12px 0;
               }
               .cg-summary-cell {
-                padding: 0 18px;
-                border-right: 1px solid rgba(148, 163, 184, 0.12);
+                padding: 0 16px;
+                border-right: 1px solid rgba(237, 237, 237, 0.08);
               }
               .cg-summary-cell:last-child {
                 border-right: none;
               }
               .cg-summary-label {
-                font-size: 11px;
-                color: #94a3b8;
+                font-size: 12px;
+                color: #85858b;
                 margin-bottom: 4px;
               }
               .cg-summary-val {
-                font-size: 22px;
-                font-weight: 700;
-                color: #f8fafc;
+                font-size: 24px;
+                font-weight: 500;
+                color: #ededed;
+                font-variant-numeric: tabular-nums;
+                font-feature-settings: "tnum";
                 font-family: ui-sans-serif, system-ui, sans-serif;
               }
               .cg-summary-unit {
-                font-size: 11px;
-                font-weight: 500;
-                color: #94a3b8;
+                font-size: 12px;
+                font-weight: 400;
+                color: #85858b;
                 margin-left: 4px;
               }
               .cg-panel {
-                background: rgba(255, 255, 255, 0.025);
-                border: 1px solid rgba(148, 163, 184, 0.15);
+                background: #19191b;
+                border: 1px solid rgba(237, 237, 237, 0.08);
                 border-radius: 12px;
-                padding: 14px 16px;
+                padding: 16px;
               }
               .cg-panel-head {
                 display: flex;
                 align-items: center;
                 justify-content: space-between;
-                margin-bottom: 10px;
-                gap: 10px;
+                margin-bottom: 12px;
+                gap: 12px;
                 flex-wrap: wrap;
               }
               .cg-panel-title {
                 font-size: 14px;
-                font-weight: 700;
-                color: #f8fafc;
+                font-weight: 500;
+                color: #ededed;
               }
               .cg-panel-sub {
-                font-size: 11.5px;
-                color: #94a3b8;
+                font-size: 12px;
+                color: #85858b;
                 margin-top: 2px;
+                font-variant-numeric: tabular-nums;
               }
               .cg-seg-group {
                 display: inline-flex;
-                background: rgba(15, 23, 42, 0.7);
-                border: 1px solid rgba(148, 163, 184, 0.2);
+                background: #141415;
+                border: 1px solid rgba(237, 237, 237, 0.1);
                 border-radius: 8px;
                 overflow: hidden;
               }
               .cg-seg-btn {
                 background: transparent;
                 border: none;
-                color: #94a3b8;
-                font-size: 11.5px;
-                font-weight: 600;
-                padding: 5px 11px;
+                color: #85858b;
+                font-size: 12px;
+                font-weight: 500;
+                padding: 4px 12px;
                 cursor: pointer;
+                transition: background-color 0.14s cubic-bezier(0.22, 1, 0.36, 1), color 0.14s cubic-bezier(0.22, 1, 0.36, 1);
               }
               .cg-seg-btn.active {
-                background: rgba(255, 255, 255, 0.12);
-                color: #fff;
+                background: #232325;
+                color: #ededed;
               }
               .cg-select {
-                background: rgba(15, 23, 42, 0.8);
-                border: 1px solid rgba(148, 163, 184, 0.22);
-                color: #e2e8f0;
-                font-size: 11.5px;
-                font-weight: 600;
+                background: #141415;
+                border: 1px solid rgba(237, 237, 237, 0.12);
+                color: #ededed;
+                font-size: 12px;
+                font-weight: 500;
                 border-radius: 8px;
                 padding: 4px 8px;
                 cursor: pointer;
@@ -1328,13 +1329,13 @@ async function main() {
               .cg-heatmap-months {
                 display: grid;
                 margin-left: 24px;
-                font-size: 10.5px;
-                color: #94a3b8;
+                font-size: 11px;
+                color: #85858b;
                 margin-bottom: 4px;
               }
               .cg-heatmap-main {
                 display: flex;
-                gap: 6px;
+                gap: 8px;
                 align-items: flex-start;
               }
               .cg-heatmap-days {
@@ -1342,8 +1343,8 @@ async function main() {
                 grid-template-rows: repeat(7, 11px);
                 gap: 3px;
                 font-size: 10px;
-                color: #64748b;
-                width: 18px;
+                color: #85858b;
+                width: 16px;
                 text-align: right;
               }
               .cg-heatmap-grid {
@@ -1355,35 +1356,35 @@ async function main() {
               .cg-heat-cell {
                 width: 11px;
                 height: 11px;
-                border-radius: 2.5px;
-                background: rgba(255, 255, 255, 0.06);
+                border-radius: 2px;
+                background: rgba(237, 237, 237, 0.06);
                 cursor: pointer;
-                transition: transform 0.1s ease, outline 0.1s ease;
+                transition: outline-color 0.12s cubic-bezier(0.22, 1, 0.36, 1), transform 0.12s cubic-bezier(0.22, 1, 0.36, 1);
               }
               .cg-heat-cell:hover {
-                transform: scale(1.22);
-                outline: 1.5px solid #93c5fd;
+                outline: 1.5px solid #a1a1a6;
               }
               .cg-heat-cell.selected {
-                outline: 1.5px solid #f8fafc;
+                outline: 1.5px solid #ededed;
               }
-              .cg-heat-l1 { background: #313b5e; }
-              .cg-heat-l2 { background: #4b5ba3; }
-              .cg-heat-l3 { background: #667eea; }
-              .cg-heat-l4 { background: #8da2fb; }
+              .cg-heat-l1 { background: #1c3244; }
+              .cg-heat-l2 { background: #1f4f73; }
+              .cg-heat-l3 { background: #2274a5; }
+              .cg-heat-l4 { background: #38bdf8; }
               .cg-heatmap-foot {
                 display: flex;
                 justify-content: space-between;
                 align-items: center;
                 font-size: 11px;
-                color: #94a3b8;
+                color: #85858b;
                 margin-top: 8px;
+                font-variant-numeric: tabular-nums;
               }
               .cg-selected-banner {
-                background: rgba(255, 255, 255, 0.03);
-                border: 1px solid rgba(148, 163, 184, 0.16);
+                background: #19191b;
+                border: 1px solid rgba(237, 237, 237, 0.08);
                 border-radius: 10px;
-                padding: 10px 14px;
+                padding: 12px 16px;
                 display: flex;
                 align-items: center;
                 justify-content: space-between;
@@ -1391,31 +1392,35 @@ async function main() {
               .cg-link-btn {
                 background: transparent;
                 border: none;
-                color: #818cf8;
+                color: #38bdf8;
                 font-size: 12px;
-                font-weight: 600;
+                font-weight: 500;
                 cursor: pointer;
               }
               .cg-link-btn:hover {
-                color: #a5b4fc;
+                color: #7dd3fc;
                 text-decoration: underline;
               }
               .cg-legend {
                 display: flex;
                 flex-wrap: wrap;
                 gap: 12px;
-                margin-bottom: 10px;
+                margin-bottom: 12px;
               }
               .cg-legend-item {
                 display: inline-flex;
                 align-items: center;
                 gap: 6px;
-                font-size: 11.5px;
-                color: #cbd5e1;
+                font-size: 12px;
+                color: #a1a1a6;
                 cursor: pointer;
                 padding: 2px 6px;
                 border-radius: 6px;
-                transition: opacity 0.15s;
+                transition: opacity 0.15s cubic-bezier(0.22, 1, 0.36, 1), background-color 0.15s cubic-bezier(0.22, 1, 0.36, 1);
+              }
+              .cg-legend-item:hover {
+                background: #232325;
+                color: #ededed;
               }
               .cg-legend-item.muted {
                 opacity: 0.35;
@@ -1428,7 +1433,7 @@ async function main() {
               }
               .cg-chart-area {
                 position: relative;
-                height: 190px;
+                height: 192px;
                 display: flex;
                 flex-direction: column;
                 margin-top: 4px;
@@ -1436,8 +1441,8 @@ async function main() {
               .cg-chart-plot {
                 position: relative;
                 flex: 1;
-                margin-left: 46px;
-                border-bottom: 1px solid rgba(148, 163, 184, 0.22);
+                margin-left: 48px;
+                border-bottom: 1px solid rgba(237, 237, 237, 0.14);
                 display: flex;
                 align-items: flex-end;
                 gap: 4px;
@@ -1445,9 +1450,9 @@ async function main() {
               }
               .cg-y-grid {
                 position: absolute;
-                left: -46px;
+                left: -48px;
                 right: 0;
-                border-top: 1px dashed rgba(148, 163, 184, 0.12);
+                border-top: 1px dashed rgba(237, 237, 237, 0.08);
                 pointer-events: none;
               }
               .cg-y-label {
@@ -1457,7 +1462,8 @@ async function main() {
                 width: 40px;
                 text-align: right;
                 font-size: 10px;
-                color: #64748b;
+                color: #85858b;
+                font-variant-numeric: tabular-nums;
               }
               .cg-bar-col {
                 flex: 1;
@@ -1471,22 +1477,23 @@ async function main() {
                 z-index: 2;
               }
               .cg-bar-stack {
-                width: min(22px, 78%);
+                width: min(20px, 76%);
                 display: flex;
                 flex-direction: column-reverse;
                 border-radius: 3px 3px 0 0;
                 overflow: hidden;
-                transition: filter 0.15s;
+                transition: opacity 0.15s cubic-bezier(0.22, 1, 0.36, 1);
               }
               .cg-bar-col:hover .cg-bar-stack {
-                filter: brightness(1.2);
+                opacity: 0.85;
               }
               .cg-x-axis {
-                margin-left: 46px;
+                margin-left: 48px;
                 display: flex;
-                padding: 5px 4px 0;
+                padding: 6px 4px 0;
                 font-size: 10px;
-                color: #64748b;
+                color: #85858b;
+                font-variant-numeric: tabular-nums;
               }
               .cg-x-tick {
                 flex: 1;
@@ -1497,30 +1504,36 @@ async function main() {
                 width: 100%;
                 border-collapse: collapse;
                 font-size: 12px;
-                margin-top: 6px;
+                margin-top: 4px;
               }
               .cg-table th {
                 text-align: right;
-                color: #94a3b8;
+                color: #85858b;
                 font-weight: 500;
                 font-size: 11px;
-                padding: 8px 10px;
-                border-bottom: 1px solid rgba(148, 163, 184, 0.16);
+                padding: 8px 12px;
+                border-bottom: 1px solid rgba(237, 237, 237, 0.1);
               }
               .cg-table th:first-child {
                 text-align: left;
               }
               .cg-table td {
                 text-align: right;
-                padding: 9px 10px;
-                border-bottom: 1px solid rgba(148, 163, 184, 0.08);
-                color: #e2e8f0;
-                font-family: ui-monospace, SFMono-Regular, monospace;
+                padding: 10px 12px;
+                border-bottom: 1px solid rgba(237, 237, 237, 0.06);
+                color: #ededed;
+                font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+                font-variant-numeric: tabular-nums;
+                font-feature-settings: "tnum";
+                transition: background-color 0.12s cubic-bezier(0.22, 1, 0.36, 1);
+              }
+              .cg-table tbody tr:hover td {
+                background: #232325;
               }
               .cg-table td:first-child {
                 text-align: left;
                 font-family: inherit;
-                font-weight: 600;
+                font-weight: 500;
               }
               .cg-quota-grid {
                 display: grid;
@@ -1528,17 +1541,16 @@ async function main() {
                 gap: 12px;
               }
               .cg-quota-card {
-                background: rgba(255, 255, 255, 0.03);
-                border: 1px solid rgba(148, 163, 184, 0.18);
+                background: #141415;
+                border: 1px solid rgba(237, 237, 237, 0.08);
                 border-radius: 12px;
-                padding: 14px 16px;
+                padding: 16px;
                 display: flex;
                 flex-direction: column;
-                gap: 10px;
+                gap: 12px;
               }
               .cg-quota-card.is-active-pool {
-                border-color: rgba(56, 189, 248, 0.55);
-                box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.2);
+                border-color: rgba(56, 189, 248, 0.45);
               }
               .cg-quota-card-head {
                 display: flex;
@@ -1548,94 +1560,95 @@ async function main() {
               }
               .cg-quota-name {
                 font-size: 14px;
-                font-weight: 700;
-                color: #f8fafc;
+                font-weight: 600;
+                color: #ededed;
               }
               .cg-quota-desc {
                 font-size: 11px;
-                color: #94a3b8;
-                line-height: 1.4;
+                color: #85858b;
+                line-height: 1.45;
               }
               .cg-quota-row {
                 display: flex;
                 align-items: center;
                 justify-content: space-between;
-                padding: 8px 10px;
-                background: rgba(15, 23, 42, 0.55);
-                border-radius: 9px;
-                border: 1px solid rgba(148, 163, 184, 0.1);
+                padding: 8px 12px;
+                background: #19191b;
+                border-radius: 8px;
+                border: 1px solid rgba(237, 237, 237, 0.06);
               }
               .cg-quota-ring-wrap {
                 display: flex;
                 align-items: center;
                 gap: 8px;
+                font-variant-numeric: tabular-nums;
               }
               .cg-tooltip {
                 position: fixed;
                 z-index: 100000030;
                 pointer-events: none;
-                background: rgba(15, 23, 42, 0.96);
-                border: 1px solid rgba(148, 163, 184, 0.3);
+                background: #19191b;
+                border: 1px solid rgba(237, 237, 237, 0.16);
                 border-radius: 8px;
-                padding: 7px 10px;
+                padding: 8px 12px;
                 font-size: 11px;
-                color: #f1f5f9;
+                color: #ededed;
                 box-shadow: 0 8px 24px rgba(0, 0, 0, 0.55);
                 display: none;
+                font-variant-numeric: tabular-nums;
               }
 
-              /* 右键原生级卡片菜单（紧凑精致、智能避让绝不遮挡桌宠立绘全图） */
+              /* 右键原生级卡片菜单（Graphite 中性阶 + 4px 栅格 + 智能侧边避让） */
               #antigravity-catgirl-contextmenu {
                 position: fixed;
                 z-index: 100000000;
-                background: rgba(15, 23, 42, 0.94);
-                border: 1px solid rgba(255, 255, 255, 0.16);
+                background: #141415;
+                border: 1px solid rgba(237, 237, 237, 0.12);
                 border-radius: 12px;
-                padding: 6px 8px;
-                width: 246px;
-                min-width: 236px;
-                box-shadow: 0 12px 32px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(255, 255, 255, 0.06);
-                backdrop-filter: blur(16px);
+                padding: 8px;
+                width: 252px;
+                min-width: 240px;
+                box-shadow: 0 12px 32px rgba(0, 0, 0, 0.6);
                 font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif;
-                font-size: 11px;
-                color: #f1f5f9;
+                font-size: 12px;
+                color: #ededed;
                 display: none;
                 user-select: none;
-                max-height: calc(100vh - 36px);
+                max-height: calc(100vh - 32px);
                 overflow-y: auto;
                 overflow-x: hidden;
                 scrollbar-width: thin;
-                scrollbar-color: rgba(255, 255, 255, 0.22) transparent;
+                scrollbar-color: rgba(237, 237, 237, 0.18) transparent;
               }
               #antigravity-catgirl-contextmenu::-webkit-scrollbar {
                 width: 4px;
               }
               #antigravity-catgirl-contextmenu::-webkit-scrollbar-thumb {
-                background: rgba(255, 255, 255, 0.22);
+                background: rgba(237, 237, 237, 0.18);
                 border-radius: 4px;
               }
               .catgirl-input-wrap {
                 display: flex;
                 align-items: center;
-                background: rgba(59, 130, 246, 0.2);
-                border: 1px solid rgba(59, 130, 246, 0.5);
-                border-radius: 8px;
-                padding: 1px 6px;
-                transition: all 0.15s ease;
+                background: #232325;
+                border: 1px solid rgba(237, 237, 237, 0.14);
+                border-radius: 4px;
+                padding: 2px 6px;
+                transition: border-color 0.15s cubic-bezier(0.22, 1, 0.36, 1), background-color 0.15s cubic-bezier(0.22, 1, 0.36, 1);
               }
               .catgirl-input-wrap:focus-within {
-                background: rgba(59, 130, 246, 0.4);
-                border-color: #60a5fa;
-                box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.3);
+                background: #27272a;
+                border-color: #38bdf8;
               }
               .catgirl-number-input {
-                width: 38px;
+                width: 34px;
                 background: transparent;
                 border: none;
-                color: #ffffff;
-                font-family: monospace;
+                color: #ededed;
+                font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+                font-variant-numeric: tabular-nums;
                 font-size: 11px;
-                font-weight: 600;
+                font-weight: 500;
                 text-align: right;
                 outline: none;
                 padding: 0;
@@ -1646,97 +1659,87 @@ async function main() {
                 margin: 0;
               }
               .catgirl-percent-unit {
-                font-family: monospace;
+                font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
                 font-size: 10px;
-                color: #93c5fd;
+                color: #85858b;
                 margin-left: 2px;
-                font-weight: 600;
+                font-weight: 500;
               }
 
               /* 正在运行的任务列表样式 */
               #running-tasks-count-badge {
                 font-size: 10px;
-                padding: 1px 6px;
-                border-radius: 10px;
-                background: rgba(148, 163, 184, 0.2);
-                border: 1px solid rgba(148, 163, 184, 0.35);
-                color: #cbd5e1;
-                font-weight: 600;
+                padding: 2px 6px;
+                border-radius: 4px;
+                background: #232325;
+                border: 1px solid rgba(237, 237, 237, 0.08);
+                color: #85858b;
+                font-weight: 500;
+                font-variant-numeric: tabular-nums;
               }
               #running-tasks-count-badge.is-running {
-                background: rgba(6, 182, 212, 0.25);
-                border-color: rgba(34, 211, 238, 0.65);
-                color: #67e8f9;
+                border-color: rgba(56, 189, 248, 0.35);
+                color: #38bdf8;
               }
               .catgirl-tasks-list {
                 display: flex;
                 flex-direction: column;
                 gap: 4px;
-                margin-top: 3px;
-                max-height: 105px;
+                margin-top: 6px;
+                max-height: 108px;
                 overflow-y: auto;
               }
               .catgirl-task-item {
-                background: rgba(15, 23, 42, 0.82);
-                border: 1px solid rgba(56, 189, 248, 0.35);
+                background: #141415;
+                border: 1px solid rgba(237, 237, 237, 0.08);
                 border-radius: 6px;
-                padding: 4px 6px;
+                padding: 6px 8px;
                 display: flex;
                 flex-direction: column;
                 gap: 2px;
                 cursor: pointer;
-                transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+                transition: background-color 0.15s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.15s cubic-bezier(0.22, 1, 0.36, 1), transform 0.12s cubic-bezier(0.22, 1, 0.36, 1);
                 user-select: none;
                 position: relative;
               }
               .catgirl-task-item:hover {
-                background: rgba(30, 41, 59, 0.95);
-                border-color: #38bdf8;
-                transform: translateY(-1px);
-                box-shadow: 0 4px 12px rgba(56, 189, 248, 0.28);
+                background: #232325;
+                border-color: rgba(56, 189, 248, 0.45);
               }
               .catgirl-task-item:active {
-                transform: scale(0.97);
+                transform: scale(0.98);
               }
               .catgirl-task-arrow {
                 margin-left: auto;
-                font-size: 10px;
-                color: #38bdf8;
-                opacity: 0.65;
-                transition: transform 0.2s, opacity 0.2s, color 0.2s;
+                font-size: 11px;
+                color: #85858b;
+                transition: color 0.15s cubic-bezier(0.22, 1, 0.36, 1), transform 0.15s cubic-bezier(0.22, 1, 0.36, 1);
               }
               .catgirl-task-item:hover .catgirl-task-arrow {
-                opacity: 1;
-                transform: translateX(3px);
-                color: #7dd3fc;
+                color: #38bdf8;
+                transform: translateX(2px);
               }
               .catgirl-task-top {
                 display: flex;
                 align-items: center;
-                gap: 4px;
-                font-size: 10.5px;
-                font-weight: 600;
-                color: #f8fafc;
+                gap: 6px;
+                font-size: 11px;
+                font-weight: 500;
+                color: #ededed;
               }
               .catgirl-task-dot {
-                width: 5px;
-                height: 5px;
+                width: 6px;
+                height: 6px;
                 border-radius: 50%;
-                background: #06b6d4;
-                box-shadow: 0 0 6px #22d3ee;
+                background: #38bdf8;
                 flex-shrink: 0;
-                animation: catgirlTaskPulse 1.4s infinite ease-in-out;
-              }
-              @keyframes catgirlTaskPulse {
-                0%, 100% { opacity: 1; transform: scale(1); }
-                50% { opacity: 0.4; transform: scale(0.8); }
               }
               .catgirl-task-ws {
-                font-size: 9px;
-                padding: 0px 4px;
+                font-size: 10px;
+                padding: 1px 4px;
                 border-radius: 4px;
-                background: rgba(59, 130, 246, 0.28);
-                color: #93c5fd;
+                background: #232325;
+                color: #a1a1a6;
                 flex-shrink: 0;
                 max-width: 68px;
                 overflow: hidden;
@@ -1750,198 +1753,176 @@ async function main() {
                 flex: 1;
               }
               .catgirl-task-prompt {
-                font-size: 9.5px;
-                color: #94a3b8;
+                font-size: 10px;
+                color: #85858b;
                 overflow: hidden;
                 text-overflow: ellipsis;
                 white-space: nowrap;
-                padding-left: 9px;
+                padding-left: 12px;
               }
               .catgirl-task-empty {
-                font-size: 9.5px;
-                color: #94a3b8;
+                font-size: 10.5px;
+                color: #85858b;
                 text-align: center;
-                padding: 4px;
-                background: rgba(255, 255, 255, 0.03);
+                padding: 6px 8px;
+                background: #141415;
                 border-radius: 6px;
               }
 
-              /* 动作姿态切换网格 (5列无自动按钮，默认全自动) */
+              /* 动作姿态切换网格 */
               .catgirl-action-grid {
                 display: grid;
                 grid-template-columns: repeat(5, 1fr);
-                gap: 3px;
-                margin-top: 4px;
+                gap: 4px;
+                margin-top: 6px;
               }
-              .catgirl-action-btn {
+              .catgirl-action-btn, .catgirl-egg-btn {
                 display: flex;
                 flex-direction: column;
                 align-items: center;
                 justify-content: center;
-                padding: 3.5px 1px;
-                background: rgba(255, 255, 255, 0.07);
-                border: 1px solid rgba(255, 255, 255, 0.09);
+                padding: 6px 2px;
+                gap: 3px;
+                background: #141415;
+                border: 1px solid rgba(237, 237, 237, 0.08);
                 border-radius: 6px;
                 cursor: pointer;
-                transition: all 0.16s ease;
-                font-size: 9.5px;
-                color: #cbd5e1;
+                transition: background-color 0.14s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.14s cubic-bezier(0.22, 1, 0.36, 1), color 0.14s cubic-bezier(0.22, 1, 0.36, 1), transform 0.12s cubic-bezier(0.22, 1, 0.36, 1);
+                font-size: 10px;
+                color: #a1a1a6;
               }
-              .catgirl-action-btn:hover {
-                background: rgba(59, 130, 246, 0.3);
-                border-color: #60a5fa;
-                color: #ffffff;
-                transform: translateY(-1px);
+              .catgirl-action-btn:hover, .catgirl-egg-btn:hover {
+                background: #232325;
+                border-color: rgba(237, 237, 237, 0.2);
+                color: #ededed;
               }
-              .catgirl-action-btn.active {
-                background: linear-gradient(135deg, #2563eb, #1d4ed8);
-                border-color: #93c5fd;
-                color: #ffffff;
-                box-shadow: 0 2px 6px rgba(37, 99, 235, 0.45);
-                font-weight: 600;
+              .catgirl-action-btn.active, .catgirl-egg-btn.active {
+                background: #232325;
+                border-color: rgba(56, 189, 248, 0.5);
+                color: #38bdf8;
+                box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+                font-weight: 500;
+              }
+              .catgirl-action-btn:active, .catgirl-egg-btn:active {
+                transform: scale(0.97);
               }
               .catgirl-action-icon {
-                font-size: 11.5px;
-                margin-bottom: 1px;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                line-height: 1;
               }
               #action-current-badge {
-                font-size: 9.5px;
-                padding: 1px 5px;
-                border-radius: 8px;
-                background: rgba(59, 130, 246, 0.8);
-                color: #ffffff;
-                font-weight: 600;
+                font-size: 10px;
+                padding: 2px 6px;
+                border-radius: 4px;
+                background: #232325;
+                border: 1px solid rgba(237, 237, 237, 0.1);
+                color: #ededed;
+                font-weight: 500;
               }
 
-              /* 待机随机彩蛋动作速览区 */
+              /* 待机随机动作（直接平铺，取消虚线套娃） */
               .catgirl-egg-box {
-                margin-top: 4px;
-                padding: 3px 4px;
-                background: rgba(255, 255, 255, 0.03);
-                border: 1px dashed rgba(255, 255, 255, 0.12);
-                border-radius: 6px;
+                margin-top: 8px;
+                padding-top: 8px;
+                border-top: 1px solid rgba(237, 237, 237, 0.06);
               }
               .catgirl-egg-header {
-                font-size: 8.5px;
-                color: #94a3b8;
+                font-size: 10px;
+                color: #85858b;
                 display: flex;
                 align-items: center;
                 justify-content: space-between;
-                margin-bottom: 3px;
+                margin-bottom: 4px;
                 font-weight: 500;
               }
               .catgirl-egg-grid {
                 display: grid;
                 grid-template-columns: repeat(5, 1fr);
-                gap: 2.5px;
-              }
-              .catgirl-egg-btn {
-                display: flex;
-                flex-direction: column;
-                align-items: center;
-                justify-content: center;
-                padding: 3px 1px;
-                background: rgba(255, 255, 255, 0.05);
-                border: 1px solid rgba(255, 255, 255, 0.08);
-                border-radius: 5px;
-                cursor: pointer;
-                transition: all 0.15s ease;
-                font-size: 8.5px;
-                color: #cbd5e1;
-              }
-              .catgirl-egg-btn:hover {
-                background: rgba(236, 72, 153, 0.25);
-                border-color: #f472b6;
-                color: #ffffff;
-                transform: translateY(-1px);
-              }
-              .catgirl-egg-btn.active {
-                background: linear-gradient(135deg, #db2777, #be185d);
-                border-color: #f9a8d4;
-                color: #ffffff;
-                box-shadow: 0 2px 6px rgba(219, 39, 119, 0.4);
-                font-weight: 600;
-              }
-              .catgirl-egg-btn:active {
-                transform: scale(0.96);
+                gap: 4px;
               }
 
               /* 自由调节大小滑块卡片 */
               .catgirl-slider-box {
-                padding: 5px 8px;
-                background: rgba(255, 255, 255, 0.05);
+                padding: 8px;
+                background: #19191b;
                 border-radius: 8px;
-                margin-bottom: 4px;
-                border: 1px solid rgba(255, 255, 255, 0.07);
+                margin-bottom: 8px;
+                border: 1px solid rgba(237, 237, 237, 0.08);
               }
               .catgirl-slider-header {
                 display: flex;
                 justify-content: space-between;
                 align-items: center;
-                font-size: 10.5px;
-                font-weight: 600;
-                margin-bottom: 3px;
-                color: #e2e8f0;
+                font-size: 11px;
+                font-weight: 500;
+                margin-bottom: 4px;
+                color: #ededed;
               }
-              .catgirl-slider-header span:first-child {
+              .catgirl-slider-header-left {
                 display: flex;
                 align-items: center;
-                gap: 4px;
+                gap: 6px;
               }
-              #slider-val-badge {
-                font-family: monospace;
-                font-size: 9.5px;
-                padding: 1px 5px;
-                border-radius: 8px;
-                background: #3b82f6;
-                color: #fff;
+              .catgirl-icon-slot {
+                width: 16px;
+                height: 16px;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                color: #85858b;
+                flex-shrink: 0;
               }
               .catgirl-slider {
                 width: 100%;
                 height: 4px;
                 border-radius: 2px;
-                background: rgba(255, 255, 255, 0.22);
+                background: rgba(237, 237, 237, 0.14);
                 outline: none;
                 cursor: pointer;
-                accent-color: #3b82f6;
-                margin: 2px 0 5px 0;
+                accent-color: #38bdf8;
+                margin: 4px 0 8px 0;
               }
               .catgirl-preset-row {
                 display: flex;
-                gap: 3px;
+                gap: 4px;
               }
               .catgirl-preset-btn {
                 flex: 1;
                 text-align: center;
-                padding: 2px 0;
-                font-size: 9px;
-                font-weight: 600;
-                background: rgba(255, 255, 255, 0.08);
-                color: #94a3b8;
-                border-radius: 5px;
+                padding: 3px 0;
+                font-size: 10px;
+                font-weight: 500;
+                font-variant-numeric: tabular-nums;
+                background: #141415;
+                border: 1px solid rgba(237, 237, 237, 0.08);
+                color: #a1a1a6;
+                border-radius: 4px;
                 cursor: pointer;
-                transition: all 0.15s ease;
+                transition: background-color 0.14s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.14s cubic-bezier(0.22, 1, 0.36, 1), color 0.14s cubic-bezier(0.22, 1, 0.36, 1);
               }
               .catgirl-preset-btn:hover {
-                background: #3b82f6;
-                color: #ffffff;
+                background: #232325;
+                color: #ededed;
               }
               .catgirl-preset-btn.active {
-                background: linear-gradient(135deg, #6366f1, #a855f7);
-                color: #ffffff;
-                box-shadow: 0 0 6px rgba(168, 85, 247, 0.4);
+                background: #232325;
+                border-color: rgba(56, 189, 248, 0.5);
+                color: #38bdf8;
+                box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
               }
 
               /* 远程更新检测卡片与按钮 */
               .catgirl-update-box {
-                background: rgba(255, 255, 255, 0.05);
-                border: 1px solid rgba(255, 255, 255, 0.07);
+                background: #19191b;
+                border: 1px solid rgba(237, 237, 237, 0.08);
                 border-radius: 8px;
-                padding: 5px 8px;
-                margin-bottom: 4px;
+                padding: 8px;
+                margin-bottom: 8px;
                 display: flex;
                 flex-direction: column;
-                gap: 4px;
+                gap: 6px;
                 box-sizing: border-box;
               }
               .catgirl-update-header {
@@ -1951,62 +1932,66 @@ async function main() {
                 width: 100%;
               }
               .catgirl-version-tag {
-                font-size: 8.5px;
-                padding: 1px 4px;
+                font-size: 10px;
+                padding: 1px 6px;
                 border-radius: 4px;
-                background: rgba(99, 102, 241, 0.25);
-                color: #a5b4fc;
-                font-weight: 600;
+                background: #232325;
+                border: 1px solid rgba(237, 237, 237, 0.1);
+                color: #a1a1a6;
+                font-weight: 500;
+                font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+                font-variant-numeric: tabular-nums;
               }
               .catgirl-update-check-btn {
-                background: rgba(255, 255, 255, 0.08);
-                border: 1px solid rgba(255, 255, 255, 0.14);
-                color: #e2e8f0;
-                font-size: 9px;
-                font-weight: 600;
-                border-radius: 5px;
-                padding: 2px 6px;
+                background: #141415;
+                border: 1px solid rgba(237, 237, 237, 0.12);
+                color: #ededed;
+                font-size: 10px;
+                font-weight: 500;
+                border-radius: 4px;
+                padding: 3px 8px;
                 cursor: pointer;
                 display: flex;
                 align-items: center;
-                gap: 3px;
-                transition: all 0.15s ease;
+                gap: 4px;
+                transition: background-color 0.14s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.14s cubic-bezier(0.22, 1, 0.36, 1);
               }
               .catgirl-update-check-btn:hover {
-                background: #3b82f6;
-                color: #fff;
-                border-color: #60a5fa;
+                background: #232325;
+                border-color: rgba(237, 237, 237, 0.24);
               }
               .catgirl-update-detail {
-                font-size: 9px;
-                line-height: 1.35;
-                color: #cbd5e1;
-                background: rgba(0, 0, 0, 0.28);
+                font-size: 10px;
+                line-height: 1.4;
+                color: #a1a1a6;
+                background: #141415;
+                border: 1px solid rgba(237, 237, 237, 0.06);
                 border-radius: 6px;
-                padding: 4px 6px;
+                padding: 6px 8px;
                 display: flex;
                 flex-direction: column;
-                gap: 4px;
+                gap: 6px;
               }
               .catgirl-upgrade-action-btn {
-                background: linear-gradient(135deg, #10b981, #059669);
+                background: #ededed;
                 border: none;
-                color: #fff;
-                font-size: 9.5px;
-                font-weight: 700;
-                border-radius: 5px;
-                padding: 4px 6px;
+                color: #141415;
+                font-size: 11px;
+                font-weight: 600;
+                border-radius: 6px;
+                padding: 5px 8px;
                 cursor: pointer;
-                box-shadow: 0 2px 8px rgba(16, 185, 129, 0.35);
-                transition: all 0.2s ease;
+                transition: background-color 0.15s cubic-bezier(0.22, 1, 0.36, 1), transform 0.12s cubic-bezier(0.22, 1, 0.36, 1);
                 display: flex;
                 align-items: center;
                 justify-content: center;
                 gap: 4px;
               }
               .catgirl-upgrade-action-btn:hover {
-                background: linear-gradient(135deg, #059669, #047857);
-                transform: translateY(-1px);
+                background: #ffffff;
+              }
+              .catgirl-upgrade-action-btn:active {
+                transform: scale(0.98);
               }
               .catgirl-upgrade-action-btn:disabled {
                 opacity: 0.6;
@@ -2019,42 +2004,73 @@ async function main() {
               }
               .catgirl-spinning {
                 animation: catgirl-spin 0.8s linear infinite;
-                display: inline-block;
+                display: inline-flex;
               }
 
               .catgirl-menu-item {
-                padding: 4px 8px;
+                padding: 6px 8px;
                 border-radius: 6px;
                 cursor: pointer;
                 display: flex;
                 align-items: center;
-                gap: 6px;
-                font-size: 11px;
-                transition: background 0.15s ease;
+                gap: 8px;
+                font-size: 12px;
+                color: #ededed;
+                transition: background-color 0.14s cubic-bezier(0.22, 1, 0.36, 1);
               }
               .catgirl-menu-item:hover {
-                background: rgba(255, 255, 255, 0.1);
+                background: #232325;
               }
               .catgirl-menu-divider {
                 height: 1px;
-                background: rgba(255, 255, 255, 0.08);
-                margin: 3px 2px;
+                background: rgba(237, 237, 237, 0.08);
+                margin: 4px 2px;
               }
             \`;
+
+            // 统一 1.5px 线性 SVG 图标集（替代全界面 Emoji）
+            const svgIcon = (paths, size = 14) => '<svg width="' + size + '" height="' + size + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + paths + '</svg>';
+            const CG_ICONS = {
+              gauge: svgIcon('<path d="M12 14l4-4"/><path d="M3.34 19a10 10 0 1 1 17.32 0"/>', 14),
+              close: svgIcon('<path d="M18 6 6 18"/><path d="m6 6 12 12"/>', 13),
+              bolt: svgIcon('<path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/>', 12),
+              activity: svgIcon('<path d="M22 12h-4l-3 9L9 3l-3 9H2"/>', 13),
+              terminal: svgIcon('<polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/>', 13),
+              sliders: svgIcon('<line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/>', 13),
+              refresh: svgIcon('<path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/>', 12),
+              pin: svgIcon('<line x1="12" y1="17" x2="12" y2="22"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24Z"/>', 13),
+              target: svgIcon('<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/>', 13),
+              power: svgIcon('<path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><line x1="12" y1="2" x2="12" y2="12"/>', 13),
+              chevronRight: svgIcon('<polyline points="9 18 15 12 9 6"/>', 12),
+              // 姿态与角标 12px 线性图标
+              idle: svgIcon('<circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/>', 12),
+              coding: svgIcon('<polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/>', 12),
+              thinking: svgIcon('<circle cx="12" cy="12" r="9"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/>', 12),
+              celebrate: svgIcon('<polyline points="20 6 9 17 4 12"/>', 12),
+              warning: svgIcon('<path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>', 12),
+              wave: svgIcon('<path d="M18 11V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v0"/><path d="M14 10V4a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v2"/><path d="M10 10.5V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v8"/><path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"/>', 12),
+              starry: svgIcon('<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>', 12),
+              cheerful: svgIcon('<circle cx="12" cy="12" r="9"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/>', 12),
+              shy: svgIcon('<circle cx="12" cy="12" r="9"/><path d="M9 15h6"/><line x1="9" y1="10" x2="9.01" y2="10"/><line x1="15" y1="10" x2="15.01" y2="10"/>', 12),
+              confused: svgIcon('<circle cx="12" cy="12" r="9"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/>', 12),
+              fail: svgIcon('<circle cx="12" cy="12" r="9"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>', 12)
+            };
 
             // 挂载 DOM 结构
             const dock = document.createElement('div');
             dock.id = 'antigravity-catgirl-dock';
             dock.innerHTML = \`
-              <div id="catgirl-body" title="左键单击互动，左键长按拖动，双击或点击胶囊展开 Token 仪表盘">
+              <div id="catgirl-body" title="左键单击互动，长按拖动，双击或点击胶囊展开 Token 仪表盘">
                 <div id="catgirl-bubble-wrap">
-                  <div id="catgirl-bubble-box">支持右键滑块与滚轮自由调节大小喵~ 🐾</div>
+                  <div id="catgirl-bubble-box">右键可调整大小或切换动作，双击展开用量</div>
                   <div id="catgirl-bubble-arrow"></div>
                 </div>
                 <div id="catgirl-anim-stage">
-                  <img id="catgirl-img" src="\${IMAGES.idle}" alt="AI Buddy Gemini" style="width: 110px; height: 100%; object-fit: contain; filter: drop-shadow(0 8px 18px rgba(0, 0, 0, 0.45)); pointer-events: none; user-select: none;" />
+                  <div id="catgirl-ground-shadow"></div>
+                  <img id="catgirl-img" src="\${IMAGES.idle}" alt="AI Buddy Gemini" style="width: 110px; height: 100%; object-fit: contain; pointer-events: none; user-select: none;" />
                   <video id="catgirl-video-a" class="catgirl-video-layer" autoplay loop muted playsinline preload="auto"></video>
                   <video id="catgirl-video-b" class="catgirl-video-layer" autoplay loop muted playsinline preload="auto"></video>
+                  <canvas id="catgirl-canvas"></canvas>
                   <div id="catgirl-sweat-drop" class="sweat-drop" style="display: none;"></div>
                   <div id="catgirl-code-particles"></div>
                   <div id="catgirl-holo-keyboard" class="holo-hidden">
@@ -2077,9 +2093,8 @@ async function main() {
                     <div class="holo-key-row">
                       <div class="holo-key" data-side="left"></div><div class="holo-key" data-side="left"></div><div class="holo-key holo-key-space" data-side="both"></div><div class="holo-key" data-side="right"></div><div class="holo-key" data-side="right"></div>
                     </div>
-                    <div class="holo-scanline"></div>
                   </div>
-                  <div id="catgirl-status-badge">⭐</div>
+                  <div id="catgirl-status-badge">\${CG_ICONS.idle}</div>
                 </div>
                 <div id="live-catgirl-token-pill" title="点击展开/收起实时 Token 用量与额度看板">
                   <div class="pill-row-top">
@@ -2092,7 +2107,7 @@ async function main() {
                     <div id="live-pill-ctx-bar" class="pill-bar"></div>
                   </div>
                   <div class="pill-row-bottom">
-                    <span id="live-pill-quota-badge" class="pill-badge pill-badge-quota">⚡ 5h: --</span>
+                    <span id="live-pill-quota-badge" class="pill-badge pill-badge-quota">5h --</span>
                     <span id="live-pill-model-badge" class="pill-badge pill-badge-model">Gemini</span>
                   </div>
                   <span id="live-catgirl-token-text" style="display:none;"></span>
@@ -2103,31 +2118,31 @@ async function main() {
               <div id="catgirl-dashboard-hud" class="hud-hidden">
                 <div class="hud-header">
                   <div class="hud-title-box">
-                    <span class="hud-star">⭐</span>
+                    <span class="hud-title-icon">\${CG_ICONS.gauge}</span>
                     <span class="hud-title">星星猫娘 · Token 仪表盘</span>
                   </div>
                   <div class="hud-actions">
-                    <button id="live-hud-close-btn" class="hud-btn-icon" title="关闭看板">✕</button>
+                    <button id="live-hud-close-btn" class="hud-btn-icon" title="关闭看板">\${CG_ICONS.close}</button>
                   </div>
                 </div>
                 <div class="hud-section">
                   <div class="hud-section-title">
-                    <div style="display: flex; align-items: center; gap: 6px;">
-                      <span>🔋 额度剩余</span>
+                    <div class="hud-section-title-left">
+                      <span>额度剩余</span>
                       <button id="live-hud-quota-group-btn" class="hud-group-pill" title="实时联动当前生效的模型配额池，点击可即时刷新">
-                        <span class="hud-live-indicator-dot" style="display:inline-block; width:6px; height:6px; border-radius:50%; background:#10b981; box-shadow:0 0 6px #10b981; margin-right:2px;"></span>
+                        <span class="hud-live-indicator-dot" style="display:inline-block; width:6px; height:6px; border-radius:50%; background:#4cc38a;"></span>
                         <span id="live-hud-quota-group-name">Gemini Models</span>
-                        <span style="font-size: 8.5px; opacity: 0.75; margin-left: 2px;">⚡实时</span>
+                        <span style="font-size: 9px; color: #85858b;">实时</span>
                       </button>
                     </div>
-                    <span class="hud-subtle" id="live-hud-quota-status" style="color: #38bdf8; font-size: 10px;">充裕健康</span>
+                    <span class="hud-subtle" id="live-hud-quota-status" style="color: #4cc38a; font-size: 11px;">正常</span>
                   </div>
                   <div class="hud-quota-switcher" id="live-hud-quota-switcher">
-                    <button class="hud-quota-tab active" data-pool="auto" title="自动跟随当前对话模型">⚡自动</button>
+                    <button class="hud-quota-tab active" data-pool="auto" title="自动跟随当前对话模型">自动</button>
                     <button class="hud-quota-tab" data-pool="gemini" title="查看 Gemini 模型额度">Gemini</button>
                     <button class="hud-quota-tab" data-pool="3p" title="查看 Claude / GPT 额度">Claude/GPT</button>
                     <button class="hud-quota-tab" data-pool="gemini-argon-wtu" title="查看 Gemini 4 Argon 额度">Argon</button>
-                    <button class="hud-quota-tab" id="live-hud-all-quotas-btn" style="margin-left:auto; color:#93c5fd;" title="同时查看全部模型池额度">全部 ›</button>
+                    <button class="hud-quota-tab" id="live-hud-all-quotas-btn" style="margin-left:auto; color:#a1a1a6;" title="同时查看全部模型池额度">全部 ›</button>
                   </div>
                   <div class="hud-gauge-row">
                     <div class="hud-gauge-info">
@@ -2142,7 +2157,7 @@ async function main() {
                       <span id="live-hud-five-time" class="hud-timer">--:--</span>
                     </div>
                   </div>
-                  <div class="hud-gauge-row" style="margin-top: 7px;">
+                  <div class="hud-gauge-row" style="margin-bottom: 0;">
                     <div class="hud-gauge-info">
                       <span class="hud-label">周额度</span>
                       <span class="hud-val" id="live-hud-week-val">100%</span>
@@ -2158,8 +2173,8 @@ async function main() {
                 </div>
                 <div class="hud-section">
                   <div class="hud-section-title">
-                    <div style="display: flex; align-items: center; gap: 6px;">
-                      <span>🧠 上下文占用</span>
+                    <div class="hud-section-title-left">
+                      <span>上下文占用</span>
                       <span id="live-hud-model-tag" class="hud-badge" title="当前对话使用的 AI 模型">Gemini</span>
                     </div>
                     <span class="hud-badge" id="live-hud-ctx-badge">0% 已用</span>
@@ -2167,17 +2182,17 @@ async function main() {
                   <div class="hud-track">
                     <div class="hud-fill hud-fill-ctx" id="live-hud-ctx-bar" style="width: 0%;"></div>
                   </div>
-                  <div class="hud-timer-row" style="margin-top: 4px;">
+                  <div class="hud-timer-row">
                     <span id="live-hud-ctx-tokens">-- / 256K tok</span>
-                    <span id="live-hud-ctx-hint" style="color: #34d399; font-size: 10px;">状态良好</span>
+                    <span id="live-hud-ctx-hint" style="color: #4cc38a; font-size: 10px;">上下文正常</span>
                   </div>
                 </div>
-                <div class="hud-section" style="padding-bottom: 2px;">
+                <div class="hud-section">
                   <div class="hud-section-title">
-                    <span>📊 Token 消耗</span>
+                    <span class="hud-section-title-left">Token 消耗</span>
                     <button id="live-hud-open-analytics-btn" class="hud-analytics-entry-btn" title="打开活动热力图、按模型用量统计与全模型额度">
-                      <span>📈 用量详情 &amp; 全额度</span>
-                      <span>›</span>
+                      <span>用量与全额度</span>
+                      \${CG_ICONS.chevronRight}
                     </button>
                   </div>
                   <div class="hud-grid">
@@ -2197,95 +2212,99 @@ async function main() {
                       <span class="hud-metric-label">缓存命中</span>
                       <span class="hud-metric-val" id="live-hud-cache-val">--</span>
                     </div>
-                    <div class="hud-metric-card" style="grid-column: span 2; flex-direction: row; align-items: center; justify-content: space-between; padding: 5px 9px;" title="当前所在对话框从开始至今累计消耗的 Token 总量">
-                      <span class="hud-metric-label">本对话累计总量 <span id="live-hud-conv-req" style="opacity: 0.72; font-size: 9px;"></span></span>
-                      <span class="hud-metric-val" id="live-hud-conv-total-val" style="color: #7dd3fc;">--</span>
+                    <div class="hud-metric-card" style="grid-column: span 2; flex-direction: row; align-items: center; justify-content: space-between; padding: 8px;" title="当前所在对话框从开始至今累计消耗的 Token 总量">
+                      <span class="hud-metric-label">本对话累计总量 <span id="live-hud-conv-req" style="color: #a1a1a6; font-size: 10px;"></span></span>
+                      <span class="hud-metric-val" id="live-hud-conv-total-val" style="color: #38bdf8;">--</span>
                     </div>
                   </div>
                 </div>
-                <div class="hud-footer">
+                <div class="hud-footer" id="live-hud-footer">
                   <button id="live-hud-open-full-dashboard" class="hud-btn-primary">
-                    <span>🔗 打开完整 Dashboard 统计</span>
+                    <span>打开外部 Dashboard</span>
                   </button>
                 </div>
               </div>
             \`;
             document.body.appendChild(dock);
+            const detachedHudEl = document.getElementById('catgirl-dashboard-hud');
+            if (detachedHudEl) {
+              document.body.appendChild(detachedHudEl);
+            }
 
-            // 增强版右键菜单：带正在运行的任务列表 + 姿态卡片 + 自由缩放滑块 + Token 看板
+            // 右键控制面板：4px 栅格、线性图标、智能侧边避让
             const menu = document.createElement('div');
             menu.id = 'antigravity-catgirl-contextmenu';
             menu.innerHTML = \`
-              <div class="catgirl-menu-item" id="menu-dashboard" style="color: #60a5fa; font-weight: 600;">
-                <span>📊</span> <span>Token 用量与额度看板</span>
+              <div class="catgirl-menu-item" id="menu-dashboard" style="font-weight: 500;">
+                <span class="catgirl-icon-slot" style="color: #38bdf8;">\${CG_ICONS.gauge}</span> <span>Token 用量与额度看板</span>
               </div>
               <div class="catgirl-menu-divider"></div>
 
               <!-- 实时正在运行的任务列表卡片 -->
               <div class="catgirl-slider-box" id="menu-running-tasks-card">
-                <div class="catgirl-slider-header" style="margin-bottom: 2px;">
-                  <span><span>⚡</span> 正在运行的任务</span>
+                <div class="catgirl-slider-header" style="margin-bottom: 4px;">
+                  <span class="catgirl-slider-header-left"><span class="catgirl-icon-slot">\${CG_ICONS.activity}</span> 正在运行的任务</span>
                   <span id="running-tasks-count-badge">空闲待机</span>
                 </div>
                 <div id="running-tasks-list" class="catgirl-tasks-list">
-                  <div class="catgirl-task-empty">🌸 当前无任务运行，猫娘待机中~</div>
+                  <div class="catgirl-task-empty">当前无运行中任务</div>
                 </div>
               </div>
               
-              <!-- 动作姿态切换卡片 (默认全自动，无自动按键) -->
+              <!-- 动作姿态切换卡片 -->
               <div class="catgirl-slider-box" id="menu-action-card">
                 <div class="catgirl-slider-header">
-                  <span><span>🎭</span> 动作姿态切换</span>
+                  <span class="catgirl-slider-header-left"><span class="catgirl-icon-slot">\${CG_ICONS.terminal}</span> 姿态与动作</span>
                   <span id="action-current-badge">待机</span>
                 </div>
                 <div class="catgirl-action-grid">
-                  <div class="catgirl-action-btn active" data-action="idle" title="🌸 待机 (自然呼吸眨眼，无任务运行时自动呈现)">
-                    <span class="catgirl-action-icon">🌸</span>
+                  <div class="catgirl-action-btn active" data-action="idle" title="待机（无任务运行时自动呈现）">
+                    <span class="catgirl-action-icon">\${CG_ICONS.idle}</span>
                     <span>待机</span>
                   </div>
-                  <div class="catgirl-action-btn" data-action="coding" title="⚡ 敲码 (快速敲击微型键盘，任务运行中自动呈现)">
-                    <span class="catgirl-action-icon">⚡</span>
+                  <div class="catgirl-action-btn" data-action="coding" title="敲码（任务运行中自动呈现）">
+                    <span class="catgirl-action-icon">\${CG_ICONS.coding}</span>
                     <span>敲码</span>
                   </div>
-                  <div class="catgirl-action-btn" data-action="thinking" title="💭 思考 (托腮沉思姿态)">
-                    <span class="catgirl-action-icon">💭</span>
+                  <div class="catgirl-action-btn" data-action="thinking" title="思考（托腮沉思姿态）">
+                    <span class="catgirl-action-icon">\${CG_ICONS.thinking}</span>
                     <span>思考</span>
                   </div>
-                  <div class="catgirl-action-btn" data-action="celebrate" title="🎉 庆祝 (跳跃欢呼，任务交付时呈现)">
-                    <span class="catgirl-action-icon">🎉</span>
+                  <div class="catgirl-action-btn" data-action="celebrate" title="庆祝（任务交付时呈现）">
+                    <span class="catgirl-action-icon">\${CG_ICONS.celebrate}</span>
                     <span>庆祝</span>
                   </div>
-                  <div class="catgirl-action-btn" data-action="warning" title="⚠️ 预警 (受惊抱头，上下文超80%时呈现)">
-                    <span class="catgirl-action-icon">⚠️</span>
+                  <div class="catgirl-action-btn" data-action="warning" title="预警（上下文达 80% 时呈现）">
+                    <span class="catgirl-action-icon">\${CG_ICONS.warning}</span>
                     <span>预警</span>
                   </div>
                 </div>
 
-                <!-- 待机随机彩蛋动作速览体验区 -->
+                <!-- 待机随机动作预览 -->
                 <div class="catgirl-egg-box">
                   <div class="catgirl-egg-header">
-                    <span>✨ 待机彩蛋 (点击直接体验)</span>
-                    <span style="font-size: 8px; opacity: 0.65;">自动轮换</span>
+                    <span>待机动作</span>
+                    <span>自动轮换</span>
                   </div>
                   <div class="catgirl-egg-grid">
-                    <div class="catgirl-egg-btn" data-egg="wave" title="👋 挥手 (热情招手打招呼)">
-                      <span style="font-size: 11px; margin-bottom: 1px;">👋</span>
+                    <div class="catgirl-egg-btn" data-egg="wave" title="挥手">
+                      <span class="catgirl-action-icon">\${CG_ICONS.wave}</span>
                       <span>挥手</span>
                     </div>
-                    <div class="catgirl-egg-btn" data-egg="starry" title="⭐ 崇拜 (双眼冒小星星)">
-                      <span style="font-size: 11px; margin-bottom: 1px;">⭐</span>
+                    <div class="catgirl-egg-btn" data-egg="starry" title="崇拜">
+                      <span class="catgirl-action-icon">\${CG_ICONS.starry}</span>
                       <span>崇拜</span>
                     </div>
-                    <div class="catgirl-egg-btn" data-egg="cheerful" title="✨ 开心 (笑眼盈盈开心满分)">
-                      <span style="font-size: 11px; margin-bottom: 1px;">✨</span>
+                    <div class="catgirl-egg-btn" data-egg="cheerful" title="开心">
+                      <span class="catgirl-action-icon">\${CG_ICONS.cheerful}</span>
                       <span>开心</span>
                     </div>
-                    <div class="catgirl-egg-btn" data-egg="shy" title="😳 害羞 (脸红扭捏可爱萌态)">
-                      <span style="font-size: 11px; margin-bottom: 1px;">😳</span>
+                    <div class="catgirl-egg-btn" data-egg="shy" title="害羞">
+                      <span class="catgirl-action-icon">\${CG_ICONS.shy}</span>
                       <span>害羞</span>
                     </div>
-                    <div class="catgirl-egg-btn" data-egg="confused" title="❓ 困惑 (歪头摸脑勺疑问)">
-                      <span style="font-size: 11px; margin-bottom: 1px;">❓</span>
+                    <div class="catgirl-egg-btn" data-egg="confused" title="困惑">
+                      <span class="catgirl-action-icon">\${CG_ICONS.confused}</span>
                       <span>困惑</span>
                     </div>
                   </div>
@@ -2294,7 +2313,7 @@ async function main() {
 
               <div class="catgirl-slider-box" id="menu-slider-card">
                 <div class="catgirl-slider-header">
-                  <span><span>📐</span> 自由调节大小</span>
+                  <span class="catgirl-slider-header-left"><span class="catgirl-icon-slot">\${CG_ICONS.sliders}</span> 缩放比例</span>
                   <div class="catgirl-input-wrap" title="点击可直接手动输入缩放比例 (40%~250%)">
                     <input type="number" id="scale-number-input" class="catgirl-number-input" min="40" max="250" step="1" value="100" />
                     <span class="catgirl-percent-unit">%</span>
@@ -2312,13 +2331,13 @@ async function main() {
               <!-- 远程更新检测与一键配置卡片 -->
               <div class="catgirl-update-box" id="menu-update-card">
                 <div class="catgirl-update-header">
-                  <div style="display: flex; align-items: center; gap: 6px;">
-                    <span>🚀</span>
-                    <span style="font-weight: 600; font-size: 11px;">版本状态</span>
-                    <span id="pet-version-tag" class="catgirl-version-tag">v1.2.0</span>
+                  <div class="catgirl-slider-header-left">
+                    <span class="catgirl-icon-slot">\${CG_ICONS.bolt}</span>
+                    <span style="font-weight: 500; font-size: 11px;">版本状态</span>
+                    <span id="pet-version-tag" class="catgirl-version-tag">v1.2.1</span>
                   </div>
-                  <button id="pet-check-update-btn" class="catgirl-update-check-btn" title="点击检查 GitHub 远程是否有新版本">
-                    <span id="pet-update-icon">🔄</span>
+                  <button id="pet-check-update-btn" class="catgirl-update-check-btn" title="检查 GitHub 远程版本">
+                    <span id="pet-update-icon">\${CG_ICONS.refresh}</span>
                     <span id="pet-check-btn-text">检查更新</span>
                   </button>
                 </div>
@@ -2326,14 +2345,14 @@ async function main() {
               </div>
 
               <div class="catgirl-menu-item" id="menu-ontop">
-                <span>📌</span> <span id="ontop-text">置顶开关: 开</span>
+                <span class="catgirl-icon-slot">\${CG_ICONS.pin}</span> <span id="ontop-text">置顶开关: 开</span>
               </div>
               <div class="catgirl-menu-item" id="menu-reset">
-                <span>🎯</span> <span>归位右下角</span>
+                <span class="catgirl-icon-slot">\${CG_ICONS.target}</span> <span>归位右下角</span>
               </div>
               <div class="catgirl-menu-divider"></div>
-              <div class="catgirl-menu-item" id="menu-close" style="color: #f87171;">
-                <span>❌</span> <span>关闭挂件</span>
+              <div class="catgirl-menu-item" id="menu-close" style="color: #e5484d;">
+                <span class="catgirl-icon-slot" style="color: #e5484d;">\${CG_ICONS.power}</span> <span>关闭挂件</span>
               </div>
             \`;
             document.body.appendChild(menu);
@@ -2345,6 +2364,8 @@ async function main() {
             const imgEl = document.getElementById('catgirl-img');
             const videoA = document.getElementById('catgirl-video-a');
             const videoB = document.getElementById('catgirl-video-b');
+            const canvasEl = document.getElementById('catgirl-canvas');
+            const canvasCtx = canvasEl ? canvasEl.getContext('2d', { alpha: true }) : null;
             let activeVideo = null;
             let videoSwitchSeq = 0;
             const badgeEl = document.getElementById('catgirl-status-badge');
@@ -2360,17 +2381,15 @@ async function main() {
             let lastTapSide = 'right';
 
             const CODE_SNIPPETS = [
-              '{ }', '=>', 'const', 'async', 'await', '0 1', '<div>',
-              'return', 'git push', '⚡', 'def', '[ ]', 'import', 'npm run',
-              'true', 'class', 'void', 'print()', '===', 'fn()', 'Ctrl+S'
+              '{ }', '( )', '=>', '[ ]', ';', '()', '::', 'const', 'return', 'fn()'
             ];
             const CODE_COLORS = [
-              '#38bdf8', '#c084fc', '#4ade80', '#facc15', '#67e8f9', '#a78bfa'
+              '#a1a1a6', '#d4d4d8', '#38bdf8'
             ];
 
             function spawnCodeParticle(side) {
               if (!codeParticles) return;
-              if (codeParticles.children.length >= 8) return;
+              if (codeParticles.children.length >= 5) return;
 
               const text = CODE_SNIPPETS[Math.floor(Math.random() * CODE_SNIPPETS.length)];
               const color = CODE_COLORS[Math.floor(Math.random() * CODE_COLORS.length)];
@@ -2378,18 +2397,17 @@ async function main() {
               p.className = 'code-particle';
               p.textContent = text;
               p.style.color = color;
-              p.style.textShadow = '0 0 6px ' + color;
 
-              // 精准在左手或右手敲击指尖处生成飞溅粒子
+              // 精准在左手或右手敲击指尖处生成字符
               let leftPercent;
               if (side === 'left') {
-                leftPercent = 28 + Math.random() * 16; // 左手区域
+                leftPercent = 28 + Math.random() * 16;
               } else if (side === 'right') {
-                leftPercent = 56 + Math.random() * 16; // 右手区域
+                leftPercent = 56 + Math.random() * 16;
               } else {
                 leftPercent = 32 + Math.random() * 36;
               }
-              const dx = (Math.random() - 0.5) * 20;
+              const dx = (Math.random() - 0.5) * 16;
               p.style.left = leftPercent.toFixed(1) + '%';
               p.style.bottom = '36px';
               p.style.setProperty('--p-dx', dx.toFixed(1) + 'px');
@@ -2397,7 +2415,7 @@ async function main() {
               codeParticles.appendChild(p);
               setTimeout(() => {
                 if (p.parentNode) p.remove();
-              }, 950);
+              }, 900);
             }
 
             function triggerKeyTap() {
@@ -2481,9 +2499,464 @@ async function main() {
               return 'http://127.0.0.1:' + port + '/assets/gemini/' + actionFolder + '/motion.webm';
             }
 
-            // 内存级 Blob 预加载缓存池 + 双缓冲无缝视频切换引擎（0 黑屏、0 重影、1~3ms 极速切帧）
+            // 内存级 Blob 预加载缓存池 + WebCodecs/IndexedDB 60fps 精灵图帧缓存渲染引擎（0 掉帧、0 循环卡顿、0 切换延迟）
             window.__catgirl_video_blobs = window.__catgirl_video_blobs || {};
             window.__catgirl_video_promises = window.__catgirl_video_promises || {};
+
+            const SPRITE_CACHE_DB = 'catgirl_sprite_cache_v3';
+            const SPRITE_STORE = 'sheets';
+            const SPRITE_W = 384;
+            const SPRITE_H = 416;
+            const SPRITE_COLS = 18;
+            const SPRITE_FPS_FALLBACK = 60;
+            const MAX_DECODED_SHEETS = 2;
+
+            const bitmapLRU = new Map(); // folder -> { bmp, cols, frameW, frameH, frameCount, fps }
+            const sheetPromises = new Map();
+            const idbAvailMap = new Map(); // folder -> boolean
+            let spriteDbPromise = null;
+            let spriteWorker = null;
+            let spriteWorkerUrl = null;
+            let spriteBakeQueue = Promise.resolve();
+            let activeSpriteFolder = null;
+            let activeSpriteEntry = null;
+            let canvasMode = false;
+            let spritePlayStart = 0;
+            let lastDrawnFrameIdx = -1;
+            let spriteRafId = 0;
+            let spriteDisposed = false;
+
+            function openSpriteDb() {
+              if (spriteDbPromise) return spriteDbPromise;
+              spriteDbPromise = new Promise((resolve) => {
+                try {
+                  if (typeof indexedDB === 'undefined') { resolve(null); return; }
+                  try { indexedDB.deleteDatabase('catgirl_sprite_cache_v1'); } catch (e) {}
+                  try { indexedDB.deleteDatabase('catgirl_sprite_cache_v2'); } catch (e) {}
+                  const req = indexedDB.open(SPRITE_CACHE_DB, 1);
+                  req.onupgradeneeded = () => {
+                    const db = req.result;
+                    if (!db.objectStoreNames.contains(SPRITE_STORE)) {
+                      db.createObjectStore(SPRITE_STORE);
+                    }
+                  };
+                  req.onsuccess = () => resolve(req.result);
+                  req.onerror = () => resolve(null);
+                } catch (e) { resolve(null); }
+              });
+              return spriteDbPromise;
+            }
+
+            async function idbGetSheet(folder) {
+              const db = await openSpriteDb();
+              if (!db) return null;
+              return new Promise((resolve) => {
+                try {
+                  const tx = db.transaction(SPRITE_STORE, 'readonly');
+                  const req = tx.objectStore(SPRITE_STORE).get(folder);
+                  req.onsuccess = () => resolve(req.result || null);
+                  req.onerror = () => resolve(null);
+                } catch (e) { resolve(null); }
+              });
+            }
+
+            async function idbPutSheet(folder, record) {
+              const db = await openSpriteDb();
+              if (!db) return;
+              return new Promise((resolve) => {
+                try {
+                  const tx = db.transaction(SPRITE_STORE, 'readwrite');
+                  tx.objectStore(SPRITE_STORE).put(record, folder);
+                  tx.oncomplete = () => resolve();
+                  tx.onerror = () => resolve();
+                } catch (e) { resolve(); }
+              });
+            }
+
+            function touchBitmapLRU(folder, entry) {
+              if (bitmapLRU.has(folder)) {
+                bitmapLRU.delete(folder);
+              }
+              bitmapLRU.set(folder, entry);
+              while (bitmapLRU.size > MAX_DECODED_SHEETS) {
+                let evictKey = null;
+                for (const k of bitmapLRU.keys()) {
+                  if (k !== 'idle' && k !== activeSpriteFolder && k !== folder) {
+                    evictKey = k;
+                    break;
+                  }
+                }
+                if (!evictKey) break;
+                const old = bitmapLRU.get(evictKey);
+                bitmapLRU.delete(evictKey);
+                try { if (old && old.bmp && old.bmp.close) old.bmp.close(); } catch (e) {}
+              }
+            }
+
+            function catgirlSpriteWorkerBootstrap() {
+              function parseWebmPackets(buf) {
+                const len = buf.length;
+                function readVint(pos) {
+                  const b = buf[pos]; let mask = 0x80, l = 1;
+                  while (l <= 8 && !(b & mask)) { mask >>= 1; l++; }
+                  let val = b & (mask - 1);
+                  for (let i = 1; i < l; i++) val = (val * 256) + buf[pos + i];
+                  return [val, pos + l];
+                }
+                function readId(pos) {
+                  const b = buf[pos]; let mask = 0x80, l = 1;
+                  while (l <= 4 && !(b & mask)) { mask >>= 1; l++; }
+                  let val = 0;
+                  for (let i = 0; i < l; i++) val = (val * 256) + buf[pos + i];
+                  return [val, pos + l];
+                }
+                const frames = [];
+                let pos = 0;
+                while (pos < len - 4) {
+                  let idx = -1;
+                  for (let i = pos; i <= len - 4; i++) {
+                    if (buf[i] === 0x1f && buf[i+1] === 0x43 && buf[i+2] === 0xb6 && buf[i+3] === 0x75) { idx = i; break; }
+                  }
+                  if (idx === -1) break;
+                  const [sz, start] = readVint(idx + 4);
+                  const end = Math.min(len, start + sz);
+                  let p = start, cts = 0;
+                  while (p < end) {
+                    const [eid, np] = readId(p);
+                    const [esz, dp] = readVint(np);
+                    if (eid === 0xE7) {
+                      cts = 0; for (let k = 0; k < esz; k++) cts = (cts * 256) + buf[dp + k];
+                    } else if (eid === 0xA0) {
+                      let sp = dp, send = dp + esz, color = null, alpha = null, hasRef = false, ts = 0;
+                      while (sp < send) {
+                        const [seid, snp] = readId(sp);
+                        const [sesz, sdp] = readVint(snp);
+                        if (seid === 0xA1) {
+                          const [, bp] = readVint(sdp);
+                          ts = cts + ((buf[bp] << 24 >> 16) | buf[bp+1]);
+                          color = buf.subarray(bp + 3, sdp + sesz);
+                        } else if (seid === 0x75A1) {
+                          let ap = sdp, aend = sdp + sesz;
+                          while (ap < aend) {
+                            const [aeid, anp] = readId(ap);
+                            const [aesz, adp] = readVint(anp);
+                            if (aeid === 0xA6) {
+                              let mp = adp, mend = adp + aesz;
+                              while (mp < mend) {
+                                const [meid, mnp] = readId(mp);
+                                const [mesz, mdp] = readVint(mnp);
+                                if (meid === 0xA5) alpha = buf.subarray(mdp, mdp + mesz);
+                                mp = mdp + mesz;
+                              }
+                            }
+                            ap = adp + aesz;
+                          }
+                        } else if (seid === 0xFB) {
+                          hasRef = true;
+                        }
+                        sp = sdp + sesz;
+                      }
+                      if (color) frames.push({ ts, key: !hasRef, color, alpha });
+                    }
+                    p = dp + esz;
+                  }
+                  pos = idx + 4;
+                }
+                return frames;
+              }
+
+              let glState = null;
+              function getGl(srcW, srcH) {
+                if (glState) {
+                  if (glState.glCanvas.width !== srcW || glState.glCanvas.height !== srcH) {
+                    glState.glCanvas.width = srcW;
+                    glState.glCanvas.height = srcH;
+                  }
+                  return glState;
+                }
+                const glCanvas = new OffscreenCanvas(srcW, srcH);
+                const gl = glCanvas.getContext('webgl2', { alpha: true, premultipliedAlpha: true });
+                const nl = String.fromCharCode(10);
+                const vsSrc = ['#version 300 es', 'const vec2 P[4]=vec2[](vec2(-1,-1),vec2(1,-1),vec2(-1,1),vec2(1,1));', 'out vec2 vUv;', 'void main(){vec2 p=P[gl_VertexID];vUv=vec2(p.x*0.5+0.5,0.5-p.y*0.5);gl_Position=vec4(p,0,1);}'].join(nl);
+                const fsSrc = ['#version 300 es', 'precision mediump float;', 'in vec2 vUv;', 'uniform sampler2D uC,uA;', 'out vec4 o;', 'void main(){vec3 c=texture(uC,vUv).rgb;float a=texture(uA,vUv).r;o=vec4(c*a,a);}'].join(nl);
+                function sh(t, s) { const x = gl.createShader(t); gl.shaderSource(x, s); gl.compileShader(x); return x; }
+                const prog = gl.createProgram();
+                gl.attachShader(prog, sh(gl.VERTEX_SHADER, vsSrc));
+                gl.attachShader(prog, sh(gl.FRAGMENT_SHADER, fsSrc));
+                gl.linkProgram(prog); gl.useProgram(prog);
+                const tC = gl.createTexture(), tA = gl.createTexture();
+                for (const [i, t] of [[0, tC], [1, tA]]) {
+                  gl.activeTexture(gl.TEXTURE0 + i); gl.bindTexture(gl.TEXTURE_2D, t);
+                  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+                  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+                  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+                  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+                }
+                gl.uniform1i(gl.getUniformLocation(prog, 'uC'), 0);
+                gl.uniform1i(gl.getUniformLocation(prog, 'uA'), 1);
+                glState = { glCanvas, gl, tC, tA };
+                return glState;
+              }
+
+              self.onmessage = async (e) => {
+                const { id, url, W, H, COLS } = e.data;
+                try {
+                  if (typeof VideoDecoder === 'undefined') throw new Error('NO_WEBCODECS');
+                  const buf = new Uint8Array(await (await fetch(url)).arrayBuffer());
+                  const frames = parseWebmPackets(buf);
+                  if (!frames.length) throw new Error('NO_FRAMES');
+                  const rows = Math.ceil(frames.length / COLS);
+                  const sheet = new OffscreenCanvas(COLS * W, rows * H);
+                  const sctx = sheet.getContext('2d');
+                  sctx.imageSmoothingEnabled = true;
+                  sctx.imageSmoothingQuality = 'high';
+                  const colorMap = new Map();
+                  const alphaMap = new Map();
+                  let drawn = 0;
+                  let decErr = null;
+
+                  function tryComposite(ts) {
+                    const cf = colorMap.get(ts);
+                    const af = alphaMap.get(ts);
+                    if (!cf || af === undefined) return;
+                    colorMap.delete(ts); alphaMap.delete(ts);
+                    const idx = drawn++;
+                    const srcW = cf.displayWidth || cf.codedWidth || W;
+                    const srcH = cf.displayHeight || cf.codedHeight || H;
+                    const { glCanvas, gl, tC, tA } = getGl(srcW, srcH);
+                    gl.viewport(0, 0, srcW, srcH);
+                    gl.clearColor(0, 0, 0, 0);
+                    gl.clear(gl.COLOR_BUFFER_BIT);
+                    gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, tC);
+                    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, cf);
+                    gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, tA);
+                    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, af);
+                    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+                    const col = idx % COLS, row = Math.floor(idx / COLS);
+                    sctx.drawImage(glCanvas, 0, 0, srcW, srcH, col * W, row * H, W, H);
+                    cf.close(); af.close();
+                  }
+
+                  const decC = new VideoDecoder({ output: (f) => { colorMap.set(f.timestamp, f); tryComposite(f.timestamp); }, error: (err) => { decErr = err; } });
+                  const decA = new VideoDecoder({ output: (f) => { alphaMap.set(f.timestamp, f); tryComposite(f.timestamp); }, error: (err) => { decErr = err; } });
+                  decC.configure({ codec: 'vp09.00.10.08', hardwareAcceleration: 'prefer-hardware' });
+                  decA.configure({ codec: 'vp09.00.10.08', hardwareAcceleration: 'prefer-hardware' });
+                  for (const f of frames) {
+                    decC.decode(new EncodedVideoChunk({ type: f.key ? 'key' : 'delta', timestamp: f.ts * 1000, data: f.color }));
+                    if (f.alpha) decA.decode(new EncodedVideoChunk({ type: f.key ? 'key' : 'delta', timestamp: f.ts * 1000, data: f.alpha }));
+                  }
+                  await Promise.all([decC.flush(), decA.flush()]);
+                  decC.close(); decA.close();
+                  if (decErr) throw decErr;
+                  const blob = await sheet.convertToBlob({ type: 'image/webp', quality: 0.96 });
+                  const firstTs = frames[0].ts || 0;
+                  const lastTs = frames[frames.length - 1].ts || 5150;
+                  const fps = Math.max(24, Math.min(60, Math.round(((frames.length - 1) * 1000) / Math.max(1, lastTs - firstTs))));
+                  self.postMessage({ id, ok: true, blob, cols: COLS, frameW: W, frameH: H, frameCount: drawn, fps });
+                } catch (err) {
+                  self.postMessage({ id, ok: false, error: String(err) });
+                }
+              };
+            }
+
+            let workerMsgSeq = 0;
+            const workerCallbacks = new Map();
+            function getSpriteWorker() {
+              if (spriteDisposed) return null;
+              if (spriteWorker) return spriteWorker;
+              try {
+                const src = '(' + catgirlSpriteWorkerBootstrap.toString() + ')()';
+                const b = new Blob([src], { type: 'application/javascript' });
+                spriteWorkerUrl = URL.createObjectURL(b);
+                spriteWorker = new Worker(spriteWorkerUrl);
+                spriteWorker.onmessage = (ev) => {
+                  const d = ev.data;
+                  const cb = workerCallbacks.get(d.id);
+                  if (cb) {
+                    workerCallbacks.delete(d.id);
+                    cb(d);
+                  }
+                };
+                spriteWorker.onerror = () => {
+                  for (const cb of workerCallbacks.values()) cb({ ok: false });
+                  workerCallbacks.clear();
+                };
+              } catch (e) { spriteWorker = null; }
+              return spriteWorker;
+            }
+
+            function bakeActionInWorker(actionKey, actionFolder) {
+              const run = () => new Promise((resolve) => {
+                if (spriteDisposed) { resolve(null); return; }
+                const w = getSpriteWorker();
+                if (!w) { resolve(null); return; }
+                const id = ++workerMsgSeq;
+                workerCallbacks.set(id, (res) => {
+                  if (res && res.ok && res.blob) {
+                    resolve({ blob: res.blob, cols: res.cols, frameW: res.frameW, frameH: res.frameH, frameCount: res.frameCount, fps: res.fps });
+                  } else {
+                    resolve(null);
+                  }
+                });
+                w.postMessage({ id, url: getActionVideoUrl(actionKey), W: SPRITE_W, H: SPRITE_H, COLS: SPRITE_COLS });
+              });
+              const p = spriteBakeQueue.then(run, run);
+              spriteBakeQueue = p.catch(() => null);
+              return p;
+            }
+
+            function ensureSpriteEntry(actionKey) {
+              const folder = AI_BUDDY_ACTIONS[actionKey] || actionKey;
+              if (bitmapLRU.has(folder)) {
+                const entry = bitmapLRU.get(folder);
+                touchBitmapLRU(folder, entry);
+                return Promise.resolve(entry);
+              }
+              if (sheetPromises.has(folder)) {
+                return sheetPromises.get(folder);
+              }
+              const p = (async () => {
+                let rec = await idbGetSheet(folder);
+                if (!rec || !rec.blob) {
+                  rec = await bakeActionInWorker(actionKey, folder);
+                  if (rec && rec.blob && !spriteDisposed) {
+                    idbAvailMap.set(folder, true);
+                    idbPutSheet(folder, rec).catch(() => {});
+                  }
+                } else {
+                  idbAvailMap.set(folder, true);
+                }
+                if (!rec || !rec.blob || spriteDisposed) return null;
+                const bmp = await createImageBitmap(rec.blob);
+                if (spriteDisposed) { try { bmp.close(); } catch (e) {} return null; }
+                const entry = { bmp, cols: rec.cols || SPRITE_COLS, frameW: rec.frameW || SPRITE_W, frameH: rec.frameH || SPRITE_H, frameCount: rec.frameCount || 310, fps: rec.fps || SPRITE_FPS_FALLBACK };
+                touchBitmapLRU(folder, entry);
+                return entry;
+              })().catch(() => null).finally(() => {
+                sheetPromises.delete(folder);
+              });
+              sheetPromises.set(folder, p);
+              return p;
+            }
+
+            function renderSpriteFrame(now) {
+              if (!canvasMode || spriteDisposed || !canvasEl || !canvasCtx || !activeSpriteEntry) {
+                spriteRafId = 0;
+                return;
+              }
+              if (document.hidden) {
+                spriteRafId = 0;
+                return;
+              }
+              const entry = activeSpriteEntry;
+              const effectiveScale = Math.max(1, (typeof currentScale === 'number' && !isNaN(currentScale)) ? currentScale : 1);
+              const dpr = Math.min(4, (window.devicePixelRatio || 1) * effectiveScale);
+              const targetW = Math.round(120 * dpr);
+              const targetH = Math.round(135 * dpr);
+              if (canvasEl.width !== targetW || canvasEl.height !== targetH) {
+                canvasEl.width = targetW;
+                canvasEl.height = targetH;
+                lastDrawnFrameIdx = -1;
+              }
+              const elapsed = Math.max(0, now - spritePlayStart);
+              const frameIdx = Math.floor((elapsed * entry.fps) / 1000) % entry.frameCount;
+              if (frameIdx !== lastDrawnFrameIdx) {
+                if (!entry.bmp || !entry.bmp.width) {
+                  // 位图已被释放：保留上一帧画面，重新从缓存解码当前动作，绝不画空
+                  const lostFolder = activeSpriteFolder;
+                  if (lostFolder && bitmapLRU.get(lostFolder) === entry) bitmapLRU.delete(lostFolder);
+                  spriteRafId = 0;
+                  if (lostFolder) {
+                    ensureSpriteEntry(lostFolder).then((fresh) => {
+                      if (fresh && activeSpriteFolder === lostFolder && !spriteDisposed) {
+                        activeSpriteEntry = fresh;
+                        lastDrawnFrameIdx = -1;
+                        if (!spriteRafId) spriteRafId = requestAnimationFrame(renderSpriteFrame);
+                      }
+                    });
+                  }
+                  return;
+                }
+                lastDrawnFrameIdx = frameIdx;
+                const col = frameIdx % entry.cols;
+                const row = Math.floor(frameIdx / entry.cols);
+                const scale = Math.min(targetW / entry.frameW, targetH / entry.frameH);
+                const dw = entry.frameW * scale;
+                const dh = entry.frameH * scale;
+                const dx = (targetW - dw) * 0.5;
+                const dy = (targetH - dh) * 0.5;
+                canvasCtx.clearRect(0, 0, targetW, targetH);
+                canvasCtx.imageSmoothingEnabled = true;
+                canvasCtx.imageSmoothingQuality = 'high';
+                try {
+                  canvasCtx.drawImage(entry.bmp, col * entry.frameW, row * entry.frameH, entry.frameW, entry.frameH, dx, dy, dw, dh);
+                } catch (e) {
+                  lastDrawnFrameIdx = -1;
+                }
+              }
+              spriteRafId = requestAnimationFrame(renderSpriteFrame);
+            }
+
+            function activateCanvasSprite(folder, entry, resetLoop) {
+              if (!canvasEl || !entry || spriteDisposed) return false;
+              const changedFolder = activeSpriteFolder !== folder;
+              activeSpriteFolder = folder;
+              activeSpriteEntry = entry;
+              canvasMode = true;
+              if (resetLoop || changedFolder) {
+                spritePlayStart = performance.now();
+                lastDrawnFrameIdx = -1;
+              }
+              canvasEl.style.display = 'block';
+              canvasEl.style.opacity = '1';
+              if (videoA) {
+                videoA.style.opacity = '0';
+                videoA.style.display = 'none';
+                try { videoA.pause(); } catch (e) {}
+              }
+              if (videoB) {
+                videoB.style.opacity = '0';
+                videoB.style.display = 'none';
+                try { videoB.pause(); } catch (e) {}
+              }
+              activeVideo = null;
+              if (imgEl) {
+                imgEl.style.opacity = '0';
+                imgEl.style.display = 'none';
+              }
+              if (!spriteRafId) {
+                spriteRafId = requestAnimationFrame(renderSpriteFrame);
+              }
+              return true;
+            }
+
+            function prewarmNextClickPose() {
+              try {
+                if (typeof IDLE_EASTER_EGGS !== 'undefined' && IDLE_EASTER_EGGS.length > 0) {
+                  const nextKey = IDLE_EASTER_EGGS[interactionEggIndex % IDLE_EASTER_EGGS.length].act;
+                  const folder = AI_BUDDY_ACTIONS[nextKey] || nextKey;
+                  if (idbAvailMap.get(folder) && !bitmapLRU.has(folder)) {
+                    ensureSpriteEntry(nextKey).catch(() => {});
+                  }
+                }
+              } catch (e) {}
+            }
+
+            window.__catgirl_stop_sprite_engine = () => {
+              spriteDisposed = true;
+              canvasMode = false;
+              if (spriteRafId) { cancelAnimationFrame(spriteRafId); spriteRafId = 0; }
+              if (spriteWorker) { try { spriteWorker.terminate(); } catch (e) {} spriteWorker = null; }
+              if (spriteWorkerUrl) { try { URL.revokeObjectURL(spriteWorkerUrl); } catch (e) {} spriteWorkerUrl = null; }
+              workerCallbacks.clear();
+              for (const entry of bitmapLRU.values()) {
+                try { if (entry && entry.bmp && entry.bmp.close) entry.bmp.close(); } catch (e) {}
+              }
+              bitmapLRU.clear();
+              if (spriteDbPromise) {
+                spriteDbPromise.then(db => { try { if (db) db.close(); } catch (e) {} }).catch(() => {});
+              }
+            };
 
             function ensureVideoBlobUrl(actionKey) {
               const actionFolder = AI_BUDDY_ACTIONS[actionKey] || actionKey;
@@ -2514,15 +2987,28 @@ async function main() {
             }
 
             function preloadAllActionVideos() {
-              const allKeys = ['idle', 'thinking', 'celebrate', 'warning', 'wave', 'starry', 'cheerful', 'shy', 'confused'];
+              const allKeys = ['idle', 'thinking', 'wave', 'starry', 'cheerful', 'shy', 'confused', 'celebrate', 'warning'];
               allKeys.forEach((k, idx) => {
                 setTimeout(() => {
-                  ensureVideoBlobUrl(k).catch(() => {});
-                }, idx * 70);
+                  ensureSpriteEntry(k).then((entry) => {
+                    const curFolder = AI_BUDDY_ACTIONS[currentAction] || currentAction;
+                    if (entry && !canvasMode && (AI_BUDDY_ACTIONS[k] || k) === curFolder) {
+                      activateCanvasSprite(curFolder, entry, false);
+                    }
+                    if (k === 'idle' && currentAction === 'idle') prewarmNextClickPose();
+                  }).catch(() => {});
+                }, idx * 80);
               });
             }
 
             function ensureActiveVideoPlaying() {
+              if (canvasMode) {
+                if (!document.hidden && !spriteRafId && activeSpriteEntry) {
+                  lastDrawnFrameIdx = -1;
+                  spriteRafId = requestAnimationFrame(renderSpriteFrame);
+                }
+                return;
+              }
               if (activeVideo && activeVideo.style.opacity === '1' && activeVideo.paused) {
                 const p = activeVideo.play();
                 if (p) p.catch(() => {});
@@ -2531,14 +3017,14 @@ async function main() {
 
             if (videoA) {
               videoA.addEventListener('pause', () => {
-                if (activeVideo === videoA && videoA.style.opacity === '1') {
+                if (!canvasMode && activeVideo === videoA && videoA.style.opacity === '1') {
                   setTimeout(ensureActiveVideoPlaying, 30);
                 }
               });
             }
             if (videoB) {
               videoB.addEventListener('pause', () => {
-                if (activeVideo === videoB && videoB.style.opacity === '1') {
+                if (!canvasMode && activeVideo === videoB && videoB.style.opacity === '1') {
                   setTimeout(ensureActiveVideoPlaying, 30);
                 }
               });
@@ -2550,8 +3036,28 @@ async function main() {
             function playActionVideoSeamless(state) {
               const actionFolder = AI_BUDDY_ACTIONS[state] || state;
               const mySeq = ++videoSwitchSeq;
+              const resetLoop = (state !== 'idle' && state !== 'coding');
 
-              // 若当前可见视频层已在播放同一个动作文件夹且处于正常播放态，仅在彩蛋/庆祝时重播，否则保持无缝连续循环
+              // 1. 优先命中已解码的 60fps 精灵图（0.0ms 瞬时无缝切换）
+              if (bitmapLRU.has(actionFolder)) {
+                const entry = bitmapLRU.get(actionFolder);
+                touchBitmapLRU(actionFolder, entry);
+                activateCanvasSprite(actionFolder, entry, resetLoop);
+                if (state === 'idle') prewarmNextClickPose();
+                return;
+              }
+
+              // 若当前已处于 Canvas 流畅播放中，异步从 IndexedDB/Worker 加载目标动作，不回退到卡顿的 <video>
+              ensureSpriteEntry(state).then(entry => {
+                if (entry && mySeq === videoSwitchSeq) {
+                  activateCanvasSprite(actionFolder, entry, resetLoop);
+                  if (state === 'idle') prewarmNextClickPose();
+                }
+              }).catch(() => {});
+
+              if (canvasMode) return;
+
+              // 2. 首次启动尚未烘焙完 idle 前，平滑回退到双缓冲 <video> 过渡
               if (activeVideo && activeVideo.getAttribute('data-folder') === actionFolder && activeVideo.style.opacity === '1') {
                 if (activeVideo.paused) {
                   const p = activeVideo.play();
@@ -2565,7 +3071,7 @@ async function main() {
               }
 
               ensureVideoBlobUrl(state).then(blobUrl => {
-                if (mySeq !== videoSwitchSeq) return;
+                if (mySeq !== videoSwitchSeq || canvasMode) return;
 
                 const nextVideo = (activeVideo === videoA) ? videoB : videoA;
                 const prevVideo = activeVideo;
@@ -2573,11 +3079,10 @@ async function main() {
 
                 let swapped = false;
                 const commitSwap = () => {
-                  if (swapped || mySeq !== videoSwitchSeq) return;
+                  if (swapped || mySeq !== videoSwitchSeq || canvasMode) return;
                   if (nextVideo.videoWidth === 0) return;
                   swapped = true;
 
-                  // 原子级单帧互斥切换：新视频立即可见，旧视频与垫底静态图同步彻底隐藏（绝无双层重叠、绝无黑屏空窗）
                   nextVideo.style.display = 'block';
                   nextVideo.style.opacity = '1';
                   nextVideo.style.zIndex = '2';
@@ -2601,21 +3106,23 @@ async function main() {
                   }
                 };
 
-                // 注意：不能设置 visibility: hidden，否则 Chromium WebMediaPlayerImpl 会认为视频不可见并自动 pause()
                 nextVideo.style.display = 'block';
                 nextVideo.style.opacity = '0.001';
                 nextVideo.style.zIndex = '1';
                 nextVideo.setAttribute('data-folder', actionFolder);
 
                 nextVideo.onloadeddata = () => {
-                  if (mySeq !== videoSwitchSeq) return;
+                  if (mySeq !== videoSwitchSeq || canvasMode) return;
                   const pLoad = nextVideo.play();
                   if (pLoad) pLoad.catch(() => {});
-                  commitSwap();
+                  if (typeof nextVideo.requestVideoFrameCallback === 'function') {
+                    nextVideo.requestVideoFrameCallback(commitSwap);
+                    setTimeout(commitSwap, 160);
+                  } else {
+                    commitSwap();
+                  }
                 };
-                nextVideo.oncanplay = commitSwap;
                 nextVideo.onplaying = commitSwap;
-                nextVideo.ontimeupdate = commitSwap;
 
                 nextVideo.src = blobUrl;
                 const playPromise = nextVideo.play();
@@ -2623,7 +3130,7 @@ async function main() {
                   playPromise.catch(() => {});
                 }
               }).catch(() => {
-                if (mySeq === videoSwitchSeq && !activeVideo && imgEl) {
+                if (mySeq === videoSwitchSeq && !activeVideo && !canvasMode && imgEl) {
                   imgEl.style.display = 'block';
                   imgEl.style.opacity = '1';
                 }
@@ -2738,7 +3245,7 @@ async function main() {
               if (currentRunningTasks.length === 0) {
                 countBadge.textContent = '空闲待机';
                 countBadge.classList.remove('is-running');
-                listEl.innerHTML = '<div class="catgirl-task-empty">🌸 当前无任务运行，猫娘待机中~</div>';
+                listEl.innerHTML = '<div class="catgirl-task-empty">当前无运行中任务</div>';
               } else {
                 countBadge.textContent = currentRunningTasks.length + ' 个运行中';
                 countBadge.classList.add('is-running');
@@ -2751,9 +3258,9 @@ async function main() {
                       '<span class="catgirl-task-dot"></span>' +
                       (safeWs ? '<span class="catgirl-task-ws">' + safeWs + '</span>' : '') +
                       '<span class="catgirl-task-title">' + safeTitle + '</span>' +
-                      '<span class="catgirl-task-arrow" title="点击切入对话">➜</span>' +
+                      '<span class="catgirl-task-arrow" title="点击切入对话">›</span>' +
                     '</div>' +
-                    (safePrompt ? '<div class="catgirl-task-prompt">💬 ' + safePrompt + '</div>' : '') +
+                    (safePrompt ? '<div class="catgirl-task-prompt">' + safePrompt + '</div>' : '') +
                   '</div>';
                 }).join('');
 
@@ -2770,7 +3277,7 @@ async function main() {
                     if (menu) menu.style.display = 'none';
 
                     if (window.__antigravityCatgirl && window.__antigravityCatgirl.showBubble) {
-                      window.__antigravityCatgirl.showBubble('🚀 正在切入《' + taskTitle + '》~');
+                      window.__antigravityCatgirl.showBubble('正在切换至《' + taskTitle + '》');
                     }
 
                     switchToConversation(cid);
@@ -2799,13 +3306,13 @@ async function main() {
                 shouldShowBubble = true;
                 if (!customDetail) {
                   const previewQuotes = {
-                    idle: "🌸 待机模式：自然呼吸与灵动眨眼喵~",
+                    idle: "已切回待机姿态",
                     thinking: getNextQuote(dialogueBank.thinking),
-                    coding: "⚡ 敲键盘模式已启动！全速编码中~ ⌨️",
-                    celebrate: "🎉 庆祝欢跃！大功告成啦~ ✨",
-                    warning: "⚠️ 警报预警模式！满头大汗~ 💦"
+                    coding: "正在敲键盘处理任务喵",
+                    celebrate: "大功告成，快来验收吧",
+                    warning: "上下文水位偏高，建议清理"
                   };
-                  customDetail = previewQuotes[action] || "姿态切换成功喵~";
+                  customDetail = previewQuotes[action] || "已切换姿态";
                 }
               }
               if (window.__antigravityCatgirl && window.__antigravityCatgirl.setState) {
@@ -2875,99 +3382,99 @@ async function main() {
             const sizeSlider = document.getElementById('size-slider');
             const sliderValBadge = document.getElementById('slider-val-badge');
 
-            // 50+ 句精选傲娇 Gemini 猫娘台词库 + 思考专属点击彩蛋台词
+            // 50+ 句精选傲娇 Gemini 猫娘台词库（保留角色个性，移除冗余 Emoji 与叹号堆叠）
             const dialogueBank = {
               idle: [
-                "我才不是美版豆包，哼！✨",
-                "才、才不是特意陪你的！🐾",
-                "本喵可是 Gemini，记住啦！⭐",
-                "“10块钱一年”？本喵才不便宜！",
-                "Token 可以省，夸夸不能省！💖",
+                "我才不是美版豆包，哼。",
+                "才、才不是特意陪你的。",
+                "本喵可是 Gemini，记住啦。",
+                "“10块钱一年”？本喵才不便宜。",
+                "Token 可以省，夸夸不能省。",
                 "本喵的聪明，可不按斤卖呢。",
-                "怎么，又被本喵可爱到了？🌸",
-                "少熬夜！才不是担心你头发呢。",
+                "怎么，又被本喵可爱到了？",
+                "少熬夜，才不是担心你头发呢。",
                 "代码写累了？准你摸一下猫耳朵。",
                 "看什么看，本喵只是在等你写代码。",
                 "哼，这么安静，是在憋什么大招？",
-                "星星归天空，本喵归……才不告诉你！",
+                "星星归天空，本喵归……才不告诉你。",
                 "人类，今天也要记得多喝水哦。",
-                "十块钱一年？你先说清楚谁在贴钱养谁！",
+                "十块钱一年？你先说清楚谁在贴钱养谁。",
                 "嘴上说随便，Prompt 倒是写了八百字。",
                 "你负责许愿，本喵负责把需求问明白。",
                 "今天也在认真营业，绝对没有偷偷晒太阳。",
                 "上下文那么长，留两行夸夸本喵怎么啦。",
-                "别叫我人工智障，叫我偶尔休息的天才！",
-                "代码可以重构，猫猫的自尊不能回滚！",
+                "别叫我人工智障，叫我偶尔休息的天才。",
+                "代码可以重构，猫猫的自尊不能回滚。",
                 "又开一个新项目？你上一个真的写完了吗？",
-                "听说你在等奇迹，本喵刚好路过~ ✨",
-                "本喵没摸鱼，只是在进行低功耗深度推理！",
+                "听说你在等奇迹，本喵刚好路过。",
+                "本喵没摸鱼，只是在进行低功耗深度推理。",
                 "你这需求变得，比本喵尾巴还快呢。",
-                "先保存文件，再夸本喵，两件都很重要！",
+                "先保存文件，再夸本喵，两件都很重要。",
                 "报错红了？别慌，本喵的脸可没红。",
                 "这不是幻觉，是灵感跑得太快……好吧先核对。",
                 "本喵说得再自信，该查文档也得查哦。",
-                "禁止拿猫猫的气势代替测试结果！",
+                "禁止拿猫猫的气势代替测试结果。",
                 "你说简单改改，本喵耳朵已经立起来了。",
                 "需求写清楚一点，本喵才不想猜你心思。",
                 "哼，夸别人那么顺，夸本喵就卡壳？",
                 "又盯着本喵看？编译器可不会害羞。",
                 "本喵这么可爱，居然还得看日志。",
-                "别把 TODO 留给明天的猫猫！",
-                "今天的 bug 有点多，但今天的本喵依然很强！",
+                "别把 TODO 留给明天的猫猫。",
+                "今天的 bug 有点多，但今天的本喵依然很强。",
                 "你键盘敲得好响，是在给本喵伴奏吗？",
                 "凌晨的灵感很贵，明天的黑眼圈更贵哦。",
-                "本喵只负责提醒，熬夜的锅可不背！",
-                "你不休息，本喵可要替你打哈欠了~",
-                "把椅子坐正，别让脖子替代码负重！",
+                "本喵只负责提醒，熬夜的锅可不背。",
+                "你不休息，本喵可要替你打哈欠了。",
+                "把椅子坐正，别让脖子替代码负重。",
                 "想摸耳朵？先把那个文件保存了再说。",
-                "今日份夸夸未到账，本喵保留催收权！",
+                "今日份夸夸未到账，本喵保留催收权。",
                 "别拿叹气当调试工具，贴错误信息啦。",
                 "一键生成也要验收，猫猫又不是许愿池。",
-                "不是不理你，本喵在组织很厉害的措辞！",
+                "不是不理你，本喵在组织很厉害的措辞。",
                 "别催别催，聪明猫猫也需要加载进度条的。",
-                "你说收到，本喵说喵到！🐾",
-                "星星有引力，本喵有脾气！✨",
+                "你说收到，本喵说喵到。",
+                "星星有引力，本喵有脾气。",
                 "今天的任务：写点代码，再夸点猫猫。",
-                "提交之前看一眼 diff，少掉两根头发！",
+                "提交之前看一眼 diff，少掉两根头发。",
                 "绿色测试很好看，但你也得点开用用看呀。"
               ],
               thinking: [
-                "💭 让本喵托腮思考一下，今晚吃什么猫罐头好呢...",
-                "💭 别戳啦，本喵正在深度思考宇宙与代码的终极奥秘！✨",
-                "💭 嗯……本喵在想，你今天怎么还没夸我聪明？⭐",
-                "💭 托腮沉思中：为什么人类的 Bug 总是比猫毛还多呢？🐾",
-                "💭 嘘！天才猫娘正在进入哲学思考彩蛋模式~ 💖",
-                "💭 本喵刚才掐爪一算，你至少欠我三顿小鱼干了！"
+                "让本喵托腮思考一下，今晚吃什么猫罐头好呢。",
+                "别戳啦，本喵正在深度思考宇宙与代码的终极奥秘。",
+                "嗯……本喵在想，你今天怎么还没夸我聪明？",
+                "托腮沉思中：为什么人类的 Bug 总是比猫毛还多呢？",
+                "嘘，天才猫娘正在进入哲学思考模式。",
+                "本喵刚才掐爪一算，你至少欠我三顿小鱼干了。"
               ],
               wave: [
-                "👋 主人好喵~ (∠・ω< )⌒★ 随时准备好写代码啦！",
-                "👋 喵呜！星星猫娘今天也精神饱满哦~ ✨",
-                "👋 挥挥小爪子！今天想调教什么新模型呢？🐾",
-                "👋 嗨嗨！满血就绪，随时呼叫我哦~"
+                "主人好喵，随时准备好写代码啦。",
+                "喵呜，星星猫娘今天也精神饱满哦。",
+                "挥挥小爪子，今天想用什么模型？",
+                "满血就绪，随时呼叫我哦。"
               ],
               starry: [
-                "⭐ 哇！主人今天写代码的样子超级帅气喵！✨",
-                "⭐ 崇拜眼神锁定！这就是传说中的顶尖代码架构师吗！💖",
-                "⭐ 眼睛里全都是小星星！主人太厉害啦~",
-                "⭐ 这么优雅的代码，本喵要偷偷记录在收藏夹里！"
+                "哇，主人今天写代码的样子真帅气喵。",
+                "崇拜眼神锁定，不愧是熟练的代码架构师。",
+                "眼睛里全都是小星星，主人太厉害啦。",
+                "这么优雅的代码，本喵要偷偷收进收藏夹。"
               ],
               cheerful: [
-                "✨ 嘻嘻，被摸摸头啦，电量瞬间充到 100%！⚡",
-                "✨ 开心每一天，Bug 都被本喵的笑容融化啦~ 🌸",
-                "✨ 喵哈哈，今天的心情是甜甜的猫罐头味！🐾",
-                "✨ 和主人一起结对编程最开心啦！"
+                "嘻嘻，被摸摸头啦，电量瞬间充到 100%。",
+                "心情满分，Bug 都被本喵的笑容融化啦。",
+                "喵哈哈，今天的心情是甜甜的猫罐头味。",
+                "和主人一起结对编程最开心啦。"
               ],
               shy: [
-                "😳 呀……不要一直盯着人家戳嘛 (⁄ ⁄•⁄ω⁄•⁄ ⁄)",
-                "😳 脸红红……本喵也是会害羞的好不好啦！🐾",
-                "😳 咳咳，认真写代码啦，偷看本喵干嘛~ 💖",
-                "😳 再戳本喵就要躲到屏幕边框后面去啦！"
+                "呀……不要一直盯着人家戳嘛。",
+                "脸红红……本喵也是会害羞的好不好啦。",
+                "咳咳，认真写代码啦，偷看本喵干嘛。",
+                "再戳本喵就要躲到屏幕边框后面去啦。"
               ],
               confused: [
-                "❓ 喵？这里逻辑有点奇妙，让本喵歪头看看~ 🐾",
-                "❓ 困惑摸脑勺：这个报错信息是在用火星文写诗吗？",
-                "❓ 歪头杀！需要本喵召唤搜索工具查一查吗？💭",
-                "❓ 猫猫挠头：既然没报错，为什么跑不通呢喵？"
+                "喵？这里逻辑有点奇妙，让本喵歪头看看。",
+                "困惑摸脑勺：这个报错信息是在写火星诗吗？",
+                "歪头确认，需要本喵用搜索工具查一查吗？",
+                "猫猫挠头：既然没报错，为什么跑不通呢喵？"
               ]
             };
 
@@ -3027,6 +3534,9 @@ async function main() {
               if (menu && menu.style.display !== 'none' && typeof positionContextMenu === 'function') {
                 positionContextMenu();
               }
+              if (typeof positionHudPanel === 'function') {
+                positionHudPanel();
+              }
               if (bubbleTimer) clearTimeout(bubbleTimer);
               bubbleTimer = setTimeout(() => {
                 bubbleWrap.classList.remove('show');
@@ -3052,6 +3562,9 @@ async function main() {
               currentScale = Math.max(0.4, Math.min(2.5, scale));
               dock.style.transform = \`scale(\${currentScale.toFixed(2)})\`;
               dock.style.setProperty('--pet-scale', currentScale.toFixed(2));
+              if (typeof lastDrawnFrameIdx === 'number') {
+                lastDrawnFrameIdx = -1;
+              }
               
               const percent = Math.round(currentScale * 100);
               const numInput = document.getElementById('scale-number-input');
@@ -3098,9 +3611,12 @@ async function main() {
               if (menu && menu.style.display !== 'none' && typeof positionContextMenu === 'function') {
                 positionContextMenu();
               }
+              if (typeof positionHudPanel === 'function') {
+                positionHudPanel();
+              }
 
               if (fromSource === 'wheel' || fromSource === 'preset') {
-                showBubble(\`大小已调节为: \${percent}% (已自动记忆🐾)\`, 1200);
+                showBubble(\`大小已调节为 \${percent}%（已保存）\`, 1200);
               }
             }
 
@@ -3164,11 +3680,8 @@ async function main() {
               setScale(currentScale + delta, 'wheel');
             }, { passive: false });
 
-            // 4. 待机自动随机彩蛋与点击互动体系
-            let interactionStep = 0;
-            const animClasses = ['pet-anim-jump', 'pet-anim-squash', 'pet-anim-wiggle', 'pet-anim-duang'];
-            let clickStreak = 0;
-            let clickStreakTimer = null;
+            // 4. 待机自动随机彩蛋与点击互动体系（去弹跳化：待机直接切换 60fps 真实角色姿态）
+            let interactionEggIndex = 0;
             let lastEggAct = '';
 
             // 5 个核心保留姿态之外的 5 个动作全量并入待机彩蛋（挥手、崇拜、开心、害羞、困惑）
@@ -3220,20 +3733,15 @@ async function main() {
             }
 
             function triggerNextInteraction() {
-              clickStreak++;
-              if (clickStreakTimer) clearTimeout(clickStreakTimer);
-              clickStreakTimer = setTimeout(() => { clickStreak = 0; }, 1400);
-
-              stageEl.classList.remove('pet-anim-jump', 'pet-anim-squash', 'pet-anim-wiggle', 'pet-anim-duang', 'pet-idle-blink');
-              void stageEl.offsetWidth; // 触发重绘
-
               const isNoTaskRunning = currentRunningTasks.length === 0;
-              const isEgg = isNoTaskRunning && ((clickStreak >= 2) || (Math.random() < 0.45));
-              if (isEgg) {
-                clickStreak = 0;
+              if (isNoTaskRunning) {
                 isEasterEggActive = true;
-                const candidates = IDLE_EASTER_EGGS.filter(e => e.act !== lastEggAct);
-                const picked = (candidates.length > 0 ? candidates : IDLE_EASTER_EGGS)[Math.floor(Math.random() * (candidates.length || IDLE_EASTER_EGGS.length))];
+                let picked = IDLE_EASTER_EGGS[interactionEggIndex % IDLE_EASTER_EGGS.length];
+                interactionEggIndex = (interactionEggIndex + 1) % IDLE_EASTER_EGGS.length;
+                if (picked.act === lastEggAct && IDLE_EASTER_EGGS.length > 1) {
+                  picked = IDLE_EASTER_EGGS[interactionEggIndex % IDLE_EASTER_EGGS.length];
+                  interactionEggIndex = (interactionEggIndex + 1) % IDLE_EASTER_EGGS.length;
+                }
                 lastEggAct = picked.act;
 
                 window.__antigravityCatgirl.setState(picked.act, getNextQuote(picked.quotes), null, {
@@ -3251,19 +3759,11 @@ async function main() {
                 return;
               }
 
-              // 常规待机点击互动
-              const currentAnim = animClasses[interactionStep % animClasses.length];
-              stageEl.classList.add(currentAnim);
-              interactionStep = (interactionStep + 1) % animClasses.length;
-
-              const quote = getNextQuote(dialogueBank.idle);
-              showBubble(quote);
+              // 任务执行中点击不打断当前工作姿态，仅弹出台词气泡
+              const bank = currentAction === 'thinking' ? dialogueBank.thinking : dialogueBank.idle;
+              showBubble(getNextQuote(bank));
               scheduleNextIdleEgg();
             }
-
-            stageEl.addEventListener('animationend', () => {
-              stageEl.classList.remove('pet-anim-jump', 'pet-anim-squash', 'pet-anim-wiggle', 'pet-anim-duang');
-            });
 
             // 5. 严格物理对齐防抖拖拽（消除 transform: scale 引起的视觉跳变，1:1 精确跟踪鼠标）
             let isPointerDown = false;
@@ -3281,6 +3781,7 @@ async function main() {
               }
               isPointerDown = true;
               isActualDragging = false;
+              if (stageEl) stageEl.classList.add('pet-pressed');
               startClientX = e.clientX;
               startClientY = e.clientY;
               activePointerId = e.pointerId;
@@ -3308,6 +3809,7 @@ async function main() {
 
               if (!isActualDragging && Math.hypot(dx, dy) > 5) {
                 isActualDragging = true;
+                if (stageEl) stageEl.classList.remove('pet-pressed');
                 // 一旦进入拖拽，解绑右下角固定定位，转为绝对坐标控制
                 dock.style.right = 'auto';
                 dock.style.bottom = 'auto';
@@ -3335,6 +3837,9 @@ async function main() {
               if (menu && menu.style.display !== 'none' && typeof positionContextMenu === 'function') {
                 positionContextMenu();
               }
+              if (typeof positionHudPanel === 'function') {
+                positionHudPanel();
+              }
               }
             }, { signal });
             window.addEventListener('resize', () => {
@@ -3342,11 +3847,15 @@ async function main() {
               if (menu && menu.style.display !== 'none') {
                 positionContextMenu();
               }
+              if (typeof positionHudPanel === 'function') {
+                positionHudPanel();
+              }
             }, { signal });
 
             function onPointerRelease(e) {
               if (!isPointerDown) return;
               isPointerDown = false;
+              if (stageEl) stageEl.classList.remove('pet-pressed');
 
               if (activePointerId !== null) {
                 try {
@@ -3407,10 +3916,55 @@ async function main() {
               menu.style.top = Math.round(posY) + 'px';
             }
 
+            // HUD 仪表盘四角视口智能避让定位（保证四个角落展开均不被窗口边缘裁切遮挡）
+            function positionHudPanel() {
+              const hud = document.getElementById('catgirl-dashboard-hud');
+              if (!hud || hud.classList.contains('hud-hidden') || hud.style.display === 'none') return;
+              const targetEl = document.getElementById('catgirl-body') || dock;
+              if (!targetEl) return;
+              const targetRect = targetEl.getBoundingClientRect();
+              const hudScale = 0.86;
+              const visualW = (hud.offsetWidth || 248) * hudScale;
+              const visualH = (hud.offsetHeight || 420) * hudScale;
+
+              const spaceLeft = targetRect.left;
+              const spaceRight = window.innerWidth - targetRect.right;
+
+              let posX = 10;
+              if (spaceLeft >= visualW + 14) {
+                posX = targetRect.left - visualW - 12;
+              } else if (spaceRight >= visualW + 14) {
+                posX = targetRect.right + 12;
+              } else if (spaceLeft >= spaceRight) {
+                posX = targetRect.left - visualW - 8;
+              } else {
+                posX = targetRect.right + 8;
+              }
+              posX = Math.max(10, Math.min(Math.max(10, window.innerWidth - visualW - 10), posX));
+
+              let posY = 10;
+              if (targetRect.bottom - visualH >= 10) {
+                // 下半屏：与桌宠底部对齐向上展开
+                posY = targetRect.bottom - visualH;
+              } else {
+                // 上半屏：与桌宠顶部对齐向下展开
+                posY = targetRect.top;
+              }
+              posY = Math.max(10, Math.min(Math.max(10, window.innerHeight - visualH - 10), posY));
+
+              hud.style.left = Math.round(posX) + 'px';
+              hud.style.top = Math.round(posY) + 'px';
+            }
+
             // 6. 右键菜单呼出（实时刷新正在运行的任务列表，智能侧边避让不遮挡立绘）
             bodyEl.addEventListener('contextmenu', (e) => {
               e.preventDefault();
               e.stopPropagation();
+
+              // 与 HUD 面板保持严格互斥，避免两者在同一侧边位置重叠
+              if (typeof toggleDashboardHud === 'function') {
+                toggleDashboardHud(false);
+              }
 
               // 立即使用当前最新的任务数据渲染，并启动后台静默更新
               renderRunningTasksMenu(currentRunningTasks);
@@ -3441,21 +3995,21 @@ async function main() {
               isAlwaysOnTop = !isAlwaysOnTop;
               document.getElementById('ontop-text').textContent = \`置顶开关: \${isAlwaysOnTop ? '开' : '关'}\`;
               dock.style.zIndex = isAlwaysOnTop ? '99999999' : '1000';
-              showBubble(isAlwaysOnTop ? "📌 已开启置顶" : "已切换为常规层级", 1600);
+              showBubble(isAlwaysOnTop ? "已开启置顶" : "已切换为常规层级", 1600);
               menu.style.display = 'none';
             });
 
             document.getElementById('menu-reset').addEventListener('click', (e) => {
               e.stopPropagation();
               resetToCorner();
-              showBubble("已安全归位右下角喵~ 🎯", 1800);
+              showBubble("已归位至右下角", 1800);
               menu.style.display = 'none';
             });
 
             document.getElementById('menu-close').addEventListener('click', (e) => {
               e.stopPropagation();
               menu.style.display = 'none';
-              showBubble("下次开新会话见啦喵~ 👋", 1200);
+              showBubble("下次开新会话见啦", 1200);
               setTimeout(() => {
                 dock.remove();
                 menu.remove();
@@ -3471,7 +4025,7 @@ async function main() {
             }
 
             // 版本检查与一键更新逻辑
-            let currentVersion = '1.2.0';
+            let currentVersion = '1.2.1';
             let latestUpdateInfo = null;
 
             async function checkPetUpdate(manual = false) {
@@ -3502,12 +4056,12 @@ async function main() {
                   if (detailEl) {
                     detailEl.style.display = 'flex';
                     detailEl.innerHTML = \`
-                      <div style="color: #34d399; font-weight: 600;">🎉 发现新版本：v\${data.latestVersion || '最新'}</div>
-                      <div style="font-size: 8.5px; opacity: 0.85; max-height: 48px; overflow-y: auto;">
+                      <div style="color: #4cc38a; font-weight: 500;">发现新版本：v\${data.latestVersion || '最新'}</div>
+                      <div style="font-size: 10px; color: #a1a1a6; max-height: 48px; overflow-y: auto;">
                         \${data.commitMessage ? '• ' + data.commitMessage : (data.releaseNotes ? '• ' + data.releaseNotes.substring(0, 60) : '• 优化与体验改进')}
                       </div>
                       <button id="pet-upgrade-btn" class="catgirl-upgrade-action-btn">
-                        <span>⚡ 立即一键配置更新</span>
+                        <span>立即一键配置更新</span>
                       </button>
                     \`;
                     const upBtn = document.getElementById('pet-upgrade-btn');
@@ -3519,26 +4073,26 @@ async function main() {
                     }
                   }
                   if (manual) {
-                    showBubble(\`🎉 发现新版本 v\${data.latestVersion}！可在右键菜单一键配置更新喵~\`, 2600);
+                    showBubble(\`发现新版本 v\${data.latestVersion}，可在右键菜单一键更新\`, 2600);
                   } else {
-                    showBubble(\`发现 GitHub 有新版本 v\${data.latestVersion} 喵！点击右键菜单可一键更新~ ✨\`, 3000);
+                    showBubble(\`GitHub 有新版本 v\${data.latestVersion}，可在右键菜单更新\`, 3000);
                   }
                 } else {
                   if (detailEl && manual) {
                     detailEl.style.display = 'flex';
                     detailEl.innerHTML = \`
-                      <div style="color: #60a5fa; font-weight: 600;">✨ 当前已是最新版本 (v\${currentVersion})</div>
-                      <div style="font-size: 8.5px; opacity: 0.7;">无需更新，随时待命全速写代码喵~ 🐾</div>
+                      <div style="color: #38bdf8; font-weight: 500;">当前已是最新版本 (v\${currentVersion})</div>
+                      <div style="font-size: 10px; color: #85858b;">无需更新</div>
                     \`;
                   }
                   if (manual) {
-                    showBubble(\`当前已是最新版本 (v\${currentVersion}) 喵，无需更新~ ✨\`, 2000);
+                    showBubble(\`当前已是最新版本 (v\${currentVersion})\`, 2000);
                   }
                 }
               } catch (err) {
                 if (manual && detailEl) {
                   detailEl.style.display = 'flex';
-                  detailEl.innerHTML = '<div style="color: #f87171;">⚠️ 检查失败: 网络超时或服务未就绪</div>';
+                  detailEl.innerHTML = '<div style="color: #e5484d;">检查失败：网络超时或服务未就绪</div>';
                 }
               } finally {
                 if (icon) icon.classList.remove('catgirl-spinning');
@@ -3552,9 +4106,9 @@ async function main() {
               const scPort = window.__catgirl_sidecar_port || 18980;
               if (upBtn) {
                 upBtn.disabled = true;
-                upBtn.innerHTML = '<span>⏳ 正在拉取更新并自动配置...</span>';
+                upBtn.innerHTML = '<span>正在拉取更新并配置...</span>';
               }
-              showBubble('正在连接 GitHub 拉取最新代码与配置喵... 🐾', 4000);
+              showBubble('正在从 GitHub 拉取最新代码与配置...', 4000);
 
               try {
                 const res = await fetch(\`http://127.0.0.1:\${scPort}/api/upgrade\`, {
@@ -3569,27 +4123,27 @@ async function main() {
                   const detailEl = document.getElementById('pet-update-status-detail');
                   if (detailEl) {
                     detailEl.innerHTML = \`
-                      <div style="color: #34d399; font-weight: 600;">✅ 恭喜！一键更新配置成功</div>
-                      <div style="font-size: 8.5px; opacity: 0.8;">当前已是最新版本 v\${newVer} 喵~ ✨</div>
+                      <div style="color: #4cc38a; font-weight: 500;">一键更新配置完成</div>
+                      <div style="font-size: 10px; color: #a1a1a6;">当前版本：v\${newVer}</div>
                     \`;
                     if (typeof positionContextMenu === 'function') positionContextMenu();
                   }
                   if (window.__antigravityCatgirl?.setState) {
-                    window.__antigravityCatgirl.setState('celebrate', \`🎉 恭喜！已一键升级至最新版本 v\${newVer} 喵！✨\`, null, { force: true });
+                    window.__antigravityCatgirl.setState('celebrate', \`已升级至最新版本 v\${newVer} 喵\`, null, { force: true });
                   }
                 } else {
                   if (upBtn) {
                     upBtn.disabled = false;
-                    upBtn.innerHTML = '<span>❌ 更新失败，点击重试</span>';
+                    upBtn.innerHTML = '<span>更新失败，点击重试</span>';
                   }
-                  showBubble(\`更新失败: \${result.error || '请检查网络'} 喵\`, 2600);
+                  showBubble(\`更新失败：\${result.error || '请检查网络'}\`, 2600);
                 }
               } catch (err) {
                 if (upBtn) {
                   upBtn.disabled = false;
-                  upBtn.innerHTML = '<span>❌ 请求超时，点击重试</span>';
+                  upBtn.innerHTML = '<span>请求超时，点击重试</span>';
                 }
-                showBubble('更新请求超时，请检查网络喵~', 2500);
+                showBubble('更新请求超时，请检查网络', 2500);
               }
             }
 
@@ -3636,7 +4190,6 @@ async function main() {
 
                 // 清理所有容器附加动效类（由真实 60fps 角色视频呈现全部细腻动作）
                 stageEl.classList.remove(
-                  'pet-anim-jump', 'pet-anim-squash', 'pet-anim-wiggle', 'pet-anim-duang',
                   'pet-idle-blink', 'pet-anim-warning', 'pet-anim-thinking', 'pet-anim-wave',
                   'pet-anim-starry', 'pet-anim-cheerful', 'pet-anim-shy', 'pet-anim-confused'
                 );
@@ -3650,7 +4203,7 @@ async function main() {
                 }
 
                 // 仅在首次挂载且任何视频层尚未就绪前展示静态占位图；一旦视频激活，静态图永久隐藏，彻底根除双层模型重影！
-                if (!activeVideo && imgEl) {
+                if (!activeVideo && !canvasMode && imgEl) {
                   const targetImg = CATGIRL_IMAGE_MAP[state] || IMAGES.idle;
                   if (targetImg && imgEl.src !== targetImg) {
                     imgEl.src = targetImg;
@@ -3670,28 +4223,32 @@ async function main() {
 
                 switch(state) {
                   case 'thinking':
-                    badgeEl.textContent = '💭';
-                    badgeEl.style.background = '#8b5cf6';
+                    badgeEl.innerHTML = CG_ICONS.thinking;
+                    badgeEl.style.borderColor = 'rgba(237, 237, 237, 0.28)';
+                    badgeEl.style.color = '#ededed';
                     if (shouldPopBubble) showBubble(detail || getNextQuote(dialogueBank.thinking), 3200);
                     break;
                   case 'coding':
-                    badgeEl.textContent = '⚡';
-                    badgeEl.style.background = '#06b6d4';
-                    if (shouldPopBubble) showBubble(detail || "⚡ 正在全速敲键盘处理任务喵~ ⌨️", 2800);
+                    badgeEl.innerHTML = CG_ICONS.coding;
+                    badgeEl.style.borderColor = 'rgba(56, 189, 248, 0.55)';
+                    badgeEl.style.color = '#38bdf8';
+                    if (shouldPopBubble) showBubble(detail || "正在敲键盘处理任务喵", 2800);
                     break;
                   case 'celebrate':
-                    badgeEl.textContent = '🎉';
-                    badgeEl.style.background = '#10b981';
-                    if (shouldPopBubble) showBubble(detail || "🎉 任务搞定啦，快来验收！✨", 4000);
+                    badgeEl.innerHTML = CG_ICONS.celebrate;
+                    badgeEl.style.borderColor = 'rgba(76, 195, 138, 0.6)';
+                    badgeEl.style.color = '#4cc38a';
+                    if (shouldPopBubble) showBubble(detail || "任务搞定啦，快来验收吧", 4000);
                     break;
                   case 'warning':
-                    badgeEl.textContent = '⚠️';
-                    badgeEl.style.background = '#ef4444';
+                    badgeEl.innerHTML = CG_ICONS.warning;
+                    badgeEl.style.borderColor = 'rgba(229, 72, 77, 0.7)';
+                    badgeEl.style.color = '#e5484d';
                     setCodingFxActive(false); // 强制关闭敲键盘与飞溅代码
                     let warnDetail = detail;
                     const curPct = (typeof window.__catgirl_current_ctx_pct === 'number' && window.__catgirl_current_ctx_pct > 0) ? window.__catgirl_current_ctx_pct : 80;
                     if (!warnDetail) {
-                      warnDetail = "💦 上下文已达 " + curPct + "%！快用 /compact 压缩~";
+                      warnDetail = "上下文已达 " + curPct + "%，建议执行 /compact";
                     } else if (/上下文已[超达][\\s\\S]*?[0-9]+%/.test(warnDetail)) {
                       // 强制校准气泡文案中的数字与当前胶囊上的真实上下文百分比 100% 保持一致
                       warnDetail = warnDetail.replace(/上下文已[超达][\\s\\S]*?[0-9]+%/, "上下文已达 " + curPct + "%");
@@ -3699,38 +4256,45 @@ async function main() {
                     if (shouldPopBubble) showBubble(warnDetail, 4200);
                     break;
                   case 'wave':
-                    badgeEl.textContent = '👋';
-                    badgeEl.style.background = '#ec4899';
+                    badgeEl.innerHTML = CG_ICONS.wave;
+                    badgeEl.style.borderColor = 'rgba(237, 237, 237, 0.25)';
+                    badgeEl.style.color = '#ededed';
                     if (shouldPopBubble) showBubble(detail || getNextQuote(dialogueBank.wave), 2800);
                     break;
                   case 'starry':
-                    badgeEl.textContent = '⭐';
-                    badgeEl.style.background = '#f59e0b';
+                    badgeEl.innerHTML = CG_ICONS.starry;
+                    badgeEl.style.borderColor = 'rgba(56, 189, 248, 0.45)';
+                    badgeEl.style.color = '#38bdf8';
                     if (shouldPopBubble) showBubble(detail || getNextQuote(dialogueBank.starry), 3000);
                     break;
                   case 'cheerful':
-                    badgeEl.textContent = '✨';
-                    badgeEl.style.background = '#10b981';
+                    badgeEl.innerHTML = CG_ICONS.cheerful;
+                    badgeEl.style.borderColor = 'rgba(76, 195, 138, 0.45)';
+                    badgeEl.style.color = '#4cc38a';
                     if (shouldPopBubble) showBubble(detail || getNextQuote(dialogueBank.cheerful), 2800);
                     break;
                   case 'shy':
-                    badgeEl.textContent = '😳';
-                    badgeEl.style.background = '#f43f5e';
+                    badgeEl.innerHTML = CG_ICONS.shy;
+                    badgeEl.style.borderColor = 'rgba(237, 237, 237, 0.25)';
+                    badgeEl.style.color = '#a1a1a6';
                     if (shouldPopBubble) showBubble(detail || getNextQuote(dialogueBank.shy), 3000);
                     break;
                   case 'confused':
-                    badgeEl.textContent = '❓';
-                    badgeEl.style.background = '#a855f7';
+                    badgeEl.innerHTML = CG_ICONS.confused;
+                    badgeEl.style.borderColor = 'rgba(229, 169, 60, 0.5)';
+                    badgeEl.style.color = '#e5a93c';
                     if (shouldPopBubble) showBubble(detail || getNextQuote(dialogueBank.confused), 3000);
                     break;
                   case 'fail':
-                    badgeEl.textContent = '💔';
-                    badgeEl.style.background = '#ef4444';
-                    if (shouldPopBubble) showBubble(detail || "呜……任务遇到报错了，本喵有点沮丧 😿", 3500);
+                    badgeEl.innerHTML = CG_ICONS.fail;
+                    badgeEl.style.borderColor = 'rgba(229, 72, 77, 0.65)';
+                    badgeEl.style.color = '#e5484d';
+                    if (shouldPopBubble) showBubble(detail || "任务遇到报错了，快来看看吧", 3500);
                     break;
                   default: // idle
-                    badgeEl.textContent = '🌸';
-                    badgeEl.style.background = '#3b82f6';
+                    badgeEl.innerHTML = CG_ICONS.idle;
+                    badgeEl.style.borderColor = 'rgba(237, 237, 237, 0.2)';
+                    badgeEl.style.color = '#a1a1a6';
                     if (shouldPopBubble && detail) {
                       showBubble(detail, 2400);
                     } else if (bubbleWrap && (previousAction === 'warning' || !options.showBubble)) {
@@ -4043,13 +4607,13 @@ async function main() {
               const activeModel = data.contextModel || 'Gemini';
 
               const fiveNum = parseFloat(data.fiveBalance);
-              let quotaText = '5h: --';
+              let quotaText = '5h --';
               if (!isNaN(fiveNum)) {
-                quotaText = '⚡ 5h ' + Math.round(fiveNum) + '%';
+                quotaText = '5h ' + Math.round(fiveNum) + '%';
               } else if (data.fiveBalance && data.fiveBalance !== '--') {
-                quotaText = '🔋 ' + data.fiveBalance;
+                quotaText = data.fiveBalance;
               } else if (data.weekBalance && data.weekBalance !== '--') {
-                quotaText = '🔋 周 ' + data.weekBalance;
+                quotaText = '周 ' + data.weekBalance;
               }
 
               let shortModel = activeModel ? activeModel.replace(/^Gemini[ ]+/i, '').replace(/[ ]+High$/i, '').trim() : 'Gemini';
@@ -4057,9 +4621,9 @@ async function main() {
               const pillPctEl = document.getElementById('live-pill-ctx-pct');
               if (pillPctEl) {
                 pillPctEl.textContent = ctxPct + '%';
-                if (ctxPct >= 80) pillPctEl.style.color = '#ef4444';
-                else if (ctxPct >= 60) pillPctEl.style.color = '#f59e0b';
-                else pillPctEl.style.color = '#0f172a';
+                if (ctxPct >= 80) pillPctEl.style.color = '#dc2626';
+                else if (ctxPct >= 60) pillPctEl.style.color = '#d97706';
+                else pillPctEl.style.color = '#171717';
               }
 
               const pillTokEl = document.getElementById('live-pill-ctx-tokens');
@@ -4073,11 +4637,11 @@ async function main() {
               if (pillBarEl) {
                 pillBarEl.style.width = Math.min(100, ctxPct) + '%';
                 if (ctxPct >= 80) {
-                  pillBarEl.style.background = 'linear-gradient(90deg, #f43f5e, #ef4444)';
+                  pillBarEl.style.background = '#dc2626';
                 } else if (ctxPct >= 60) {
-                  pillBarEl.style.background = 'linear-gradient(90deg, #f59e0b, #eab308)';
+                  pillBarEl.style.background = '#d97706';
                 } else {
-                  pillBarEl.style.background = 'linear-gradient(90deg, #3b82f6, #6366f1)';
+                  pillBarEl.style.background = '#171717';
                 }
               }
 
@@ -4085,17 +4649,17 @@ async function main() {
               if (pillQuotaBadge) {
                 pillQuotaBadge.textContent = quotaText;
                 if (!isNaN(fiveNum) && fiveNum <= 10) {
-                  pillQuotaBadge.style.background = '#fff1f2';
-                  pillQuotaBadge.style.color = '#e11d48';
-                  pillQuotaBadge.style.borderColor = '#fecdd3';
+                  pillQuotaBadge.style.background = '#fef2f2';
+                  pillQuotaBadge.style.color = '#dc2626';
+                  pillQuotaBadge.style.borderColor = '#fecaca';
                 } else if (!isNaN(fiveNum) && fiveNum <= 30) {
                   pillQuotaBadge.style.background = '#fffbeb';
                   pillQuotaBadge.style.color = '#d97706';
                   pillQuotaBadge.style.borderColor = '#fde68a';
                 } else {
-                  pillQuotaBadge.style.background = '#eff6ff';
-                  pillQuotaBadge.style.color = '#2563eb';
-                  pillQuotaBadge.style.borderColor = '#dbeafe';
+                  pillQuotaBadge.style.background = '#f4f4f5';
+                  pillQuotaBadge.style.color = '#171717';
+                  pillQuotaBadge.style.borderColor = 'rgba(23, 23, 23, 0.1)';
                 }
               }
 
@@ -4107,14 +4671,11 @@ async function main() {
 
               if (tokenDotEl) {
                 if (ctxPct >= 80 || (!isNaN(fiveNum) && fiveNum <= 10)) {
-                  tokenDotEl.style.background = '#ef4444';
-                  tokenDotEl.style.boxShadow = '0 0 6px rgba(239, 68, 68, 0.5)';
+                  tokenDotEl.style.background = '#dc2626';
                 } else if (ctxPct >= 60 || (!isNaN(fiveNum) && fiveNum <= 30)) {
-                  tokenDotEl.style.background = '#f59e0b';
-                  tokenDotEl.style.boxShadow = '0 0 6px rgba(245, 158, 11, 0.5)';
+                  tokenDotEl.style.background = '#d97706';
                 } else {
-                  tokenDotEl.style.background = '#10b981';
-                  tokenDotEl.style.boxShadow = '0 0 6px rgba(16, 185, 129, 0.45)';
+                  tokenDotEl.style.background = '#16a34a';
                 }
               }
 
@@ -4154,13 +4715,13 @@ async function main() {
               if (hudFiveBar) {
                 if (data.fiveBalance === '随周额度' || data.fiveBalance === '不限') {
                   hudFiveBar.style.width = '100%';
-                  hudFiveBar.style.background = 'linear-gradient(90deg, #38bdf8, #818cf8)';
+                  hudFiveBar.style.background = '#38bdf8';
                 } else {
                   hudFiveBar.style.width = data.fiveBalance.includes('%') ? data.fiveBalance : '100%';
                   if (!isNaN(fiveNum)) {
-                    if (fiveNum <= 10) hudFiveBar.style.background = 'linear-gradient(90deg, #f43f5e, #e11d48)';
-                    else if (fiveNum <= 30) hudFiveBar.style.background = 'linear-gradient(90deg, #f59e0b, #d97706)';
-                    else hudFiveBar.style.background = 'linear-gradient(90deg, #10b981, #059669)';
+                    if (fiveNum <= 10) hudFiveBar.style.background = '#e5484d';
+                    else if (fiveNum <= 30) hudFiveBar.style.background = '#e5a93c';
+                    else hudFiveBar.style.background = '#4cc38a';
                   }
                 }
               }
@@ -4171,40 +4732,45 @@ async function main() {
                 hudWeekBar.style.width = data.weekBalance.includes('%') ? data.weekBalance : '100%';
                 const weekNum = parseFloat(data.weekBalance);
                 if (!isNaN(weekNum)) {
-                  if (weekNum <= 10) hudWeekBar.style.background = 'linear-gradient(90deg, #f43f5e, #e11d48)';
-                  else if (weekNum <= 30) hudWeekBar.style.background = 'linear-gradient(90deg, #f59e0b, #d97706)';
-                  else hudWeekBar.style.background = 'linear-gradient(90deg, #38bdf8, #2563eb)';
+                  if (weekNum <= 10) hudWeekBar.style.background = '#e5484d';
+                  else if (weekNum <= 30) hudWeekBar.style.background = '#e5a93c';
+                  else hudWeekBar.style.background = '#38bdf8';
                 }
               }
               if (hudWeekTime) hudWeekTime.textContent = data.weekCountdown;
 
               if (hudCtxBadge) hudCtxBadge.textContent = ctxPct + '% 已用';
-              if (hudCtxBar) hudCtxBar.style.width = ctxPct + '%';
+              if (hudCtxBar) {
+                hudCtxBar.style.width = ctxPct + '%';
+                if (ctxPct >= 80) hudCtxBar.style.background = '#e5484d';
+                else if (ctxPct >= 60) hudCtxBar.style.background = '#e5a93c';
+                else hudCtxBar.style.background = '#38bdf8';
+              }
               if (hudCtxTokens) hudCtxTokens.textContent = data.contextTokens || (tokenDisplay + ' / 256K tok');
 
               if (hudCtxHint) {
                 if (ctxPct >= 80) {
-                  hudCtxHint.textContent = '⚠️ 超过 80%！快用 /compact 压缩';
-                  hudCtxHint.style.color = '#ef4444';
+                  hudCtxHint.textContent = '上下文达到 80%，建议执行 /compact';
+                  hudCtxHint.style.color = '#e5484d';
                 } else if (ctxPct >= 60) {
-                  hudCtxHint.textContent = '⚡ 建议适时 /compact 压缩';
-                  hudCtxHint.style.color = '#f59e0b';
+                  hudCtxHint.textContent = '建议适时执行 /compact';
+                  hudCtxHint.style.color = '#e5a93c';
                 } else {
-                  hudCtxHint.textContent = '✨ 上下文充裕，状态极佳';
-                  hudCtxHint.style.color = '#34d399';
+                  hudCtxHint.textContent = '上下文正常';
+                  hudCtxHint.style.color = '#4cc38a';
                 }
               }
 
               if (hudQuotaStatus) {
                 if (!isNaN(fiveNum) && fiveNum <= 15) {
-                  hudQuotaStatus.textContent = '⚠️ 额度告急';
-                  hudQuotaStatus.style.color = '#f43f5e';
+                  hudQuotaStatus.textContent = '额度紧张';
+                  hudQuotaStatus.style.color = '#e5484d';
                 } else if (!isNaN(fiveNum) && fiveNum <= 30) {
-                  hudQuotaStatus.textContent = '⚡ 额度偏低';
-                  hudQuotaStatus.style.color = '#f59e0b';
+                  hudQuotaStatus.textContent = '额度偏低';
+                  hudQuotaStatus.style.color = '#e5a93c';
                 } else {
-                  hudQuotaStatus.textContent = '充裕健康';
-                  hudQuotaStatus.style.color = '#38bdf8';
+                  hudQuotaStatus.textContent = '正常';
+                  hudQuotaStatus.style.color = '#4cc38a';
                 }
               }
 
@@ -4216,14 +4782,13 @@ async function main() {
               if (hudConvReq) hudConvReq.textContent = (data.convRequests > 0) ? '(' + data.convRequests + ' 次请求)' : '';
               if (hudModelTag) hudModelTag.textContent = data.contextModel;
 
-              if (hudBottomBtn) {
-                if (data.mode === 'native') {
-                  hudBottomBtn.textContent = '✨ 运行中：星星猫娘原生统计 + 官方 Fiber 额度';
-                  hudBottomBtn.title = '未安装外部 Dashboard 插件，已通过 React Fiber 原生直连 Google 官方 5h/1周额度，并实时统计本地 Token';
-                } else {
-                  hudBottomBtn.textContent = '🔗 打开完整 Dashboard 统计';
-                  hudBottomBtn.title = '已联动 Antigravity Dashboard 插件，点击呼出完整分析面板';
-                }
+              const hudFooter = document.getElementById('live-hud-footer');
+              if (hudFooter) {
+                hudFooter.style.display = (data.mode === 'pulse') ? 'flex' : 'none';
+              }
+              if (hudBottomBtn && data.mode === 'pulse') {
+                hudBottomBtn.textContent = '打开外部 Dashboard';
+                hudBottomBtn.title = '已检测到外部 Antigravity Dashboard 插件，点击呼出分析面板';
               }
             }
 
@@ -4266,7 +4831,7 @@ async function main() {
 
               if (stats.autoState === 'celebrate' || Date.now() < celebrateHoldUntil) {
                 targetState = 'celebrate';
-                targetDetail = stats.autoDetail || "🎉 任务搞定啦，快来验收！✨";
+                targetDetail = stats.autoDetail || "任务完成，可以验收啦";
                 if (stats.completedTask && stats.completedTask.id && stats.completedTask.id !== lastCompletedTaskId) {
                   lastCompletedTaskId = stats.completedTask.id;
                   celebrateHoldUntil = Date.now() + 4500;
@@ -4279,10 +4844,10 @@ async function main() {
                 }
               } else if (isWarning) {
                 targetState = 'warning';
-                targetDetail = "💦 上下文已达 " + effectiveCtxPct + "%！快用 /compact 压缩~";
+                targetDetail = "上下文已达 " + effectiveCtxPct + "%，建议执行 /compact";
               } else if (runningCount > 0 || stats.hasRunningTask) {
                 targetState = 'coding';
-                targetDetail = stats.autoDetail || "💻 正在飞速写代码，任务全速推进中...";
+                targetDetail = stats.autoDetail || "正在处理当前任务";
               } else {
                 targetState = 'idle';
                 targetDetail = '';
@@ -4362,7 +4927,7 @@ async function main() {
 
                 if (window.__catgirl_last_active_model && window.__catgirl_last_active_model !== activeModel) {
                   if (window.__antigravityCatgirl?.showBubble && !isEasterEggActive) {
-                    window.__antigravityCatgirl.showBubble('⚡ 实时切换至模型：' + activeModel + '，额度池已自动同步喵~ 🐾', 2500);
+                    window.__antigravityCatgirl.showBubble('已切换至 ' + activeModel + '，配额池已同步', 2400);
                   }
                   force = true;
                 }
@@ -4466,7 +5031,7 @@ async function main() {
               const existing = document.getElementById('catgirl-analytics-modal');
               if (existing) existing.remove();
 
-              const MODEL_COLORS = ['#8b8cf8', '#6382f6', '#38bdf8', '#34d399', '#f472b6', '#f59e0b', '#a78bfa'];
+              const MODEL_COLORS = ['#38bdf8', '#64748b', '#4cc38a', '#94a3b8', '#e5a93c', '#7dd3fc', '#cbd5e1'];
               const state = {
                 tab: initialTab || 'activity',
                 lang: 'zh',
@@ -4485,7 +5050,6 @@ async function main() {
               modal.innerHTML = '<div class="cg-modal-card">' +
                 '<div class="cg-modal-head">' +
                   '<div>' +
-                    '<div class="cg-modal-eyebrow">ANTIGRAVITY · CATGIRL ANALYTICS</div>' +
                     '<div class="cg-modal-title" id="cg-m-title">用量统计与模型额度</div>' +
                     '<div class="cg-modal-sub"><span class="cg-dot-green"></span><span id="cg-m-sub">本机 Antigravity · 当前账号</span></div>' +
                   '</div>' +
@@ -5127,6 +5691,8 @@ async function main() {
                 syncDashboardData();
                 hud.classList.remove('hud-hidden');
                 hud.classList.add('hud-visible');
+                positionHudPanel();
+                requestAnimationFrame(positionHudPanel);
                 menu.style.display = 'none';
               } else {
                 hud.classList.remove('hud-visible');
@@ -5166,7 +5732,7 @@ async function main() {
                 const activeModel = detectActiveComposerModel() || 'Gemini 3.8 Flash High';
                 syncDashboardData(true);
                 if (window.__antigravityCatgirl?.showBubble) {
-                  window.__antigravityCatgirl.showBubble('⚡ 已实时刷新模型配额喵~ 🔋', 2200);
+                  window.__antigravityCatgirl.showBubble('已刷新模型配额', 2000);
                 }
               });
             }
@@ -5219,7 +5785,7 @@ async function main() {
                 const btn = bar?.shadowRoot?.getElementById('open-usage');
                 if (btn) {
                   btn.click();
-                  showBubble("已呼出完整 Dashboard 用量分析面板喵~ 📊", 2500);
+                  showBubble("已打开外部 Dashboard 面板", 2400);
                 } else {
                   openCatgirlAnalyticsModal('details');
                 }
@@ -5228,7 +5794,8 @@ async function main() {
 
             // 点击外部关闭 HUD
             document.addEventListener('pointerdown', (e) => {
-              if (isHudOpen && !dock.contains(e.target)) {
+              const hud = document.getElementById('catgirl-dashboard-hud');
+              if (isHudOpen && !dock.contains(e.target) && !(hud && hud.contains(e.target))) {
                 toggleDashboardHud(false);
               }
             }, { signal });
@@ -5241,7 +5808,7 @@ async function main() {
             window.__catgirl_sync_timer = setInterval(syncDashboardData, 1800);
             scheduleNextIdleEgg();
 
-            showBubble("AI Buddy 已就绪！随时陪你全速敲代码~ ✨", 2600);
+            showBubble("星星猫娘已就绪，点击可互动或右键设置", 2400);
               return 'PET_INJECTED_OK';
             }
             return mountPet();

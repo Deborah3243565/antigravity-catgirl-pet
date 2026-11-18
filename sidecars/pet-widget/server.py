@@ -13,6 +13,7 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 from socketserver import ThreadingMixIn
 from datetime import datetime, timedelta
 from collections import deque
+import statistics
 
 # 历史用量缓存（8秒刷新一次，避免高频全盘扫描）
 _history_cache = {
@@ -388,7 +389,7 @@ def get_native_stats(override_pct=None, conversation_id=None):
                 pass
             try:
                 # 全量扫描当前对话框日志，统计完整累计 Token 总量、请求数，同时提取末尾上下文与生成速率
-                tail_lines = deque(maxlen=60)
+                tail_lines = deque(maxlen=120)
                 with open(target_transcript, "r", encoding="utf-8", errors="ignore") as f:
                     for line in f:
                         tail_lines.append(line)
@@ -406,26 +407,27 @@ def get_native_stats(override_pct=None, conversation_id=None):
                             except Exception:
                                 pass
                 ctx_pct = min(100, max(1, round(ctx_tokens / 262144 * 100))) if ctx_tokens > 0 else 0
-                # 基于最近步骤的 output_tokens 与时间差测算真实平均生成速率
+                # 基于最近有效步骤的 output_tokens 与时间差，过滤整秒取整(dt<2s)及异常尖峰后取中位速率
                 prev_ts = None
-                tot_out = 0
-                tot_dt = 0.0
+                step_tps_samples = []
                 for line in tail_lines:
                     try:
                         d = json.loads(line)
                         ca = d.get("created_at")
                         ts = datetime.fromisoformat(ca.replace("Z", "+00:00")).timestamp() if ca else None
-                        if d.get("type") == "PLANNER_RESPONSE" and d.get("output_tokens") and prev_ts and ts:
+                        out_tok = d.get("output_tokens")
+                        if d.get("type") == "PLANNER_RESPONSE" and out_tok and prev_ts and ts:
                             dt = ts - prev_ts
-                            if 1.0 <= dt <= 120.0:
-                                tot_out += d["output_tokens"]
-                                tot_dt += dt
+                            if 2.0 <= dt <= 120.0:
+                                step_tps = out_tok / dt
+                                if 1.0 <= step_tps <= 350.0:
+                                    step_tps_samples.append(step_tps)
                         if ts:
                             prev_ts = ts
                     except Exception:
                         pass
-                if tot_dt > 0 and tot_out > 0:
-                    real_tps = f"{round(tot_out / tot_dt, 1)} tok/s"
+                if step_tps_samples:
+                    real_tps = f"{round(statistics.median(step_tps_samples), 1)} tok/s"
             except Exception:
                 pass
 
@@ -517,13 +519,13 @@ def get_native_stats(override_pct=None, conversation_id=None):
 
     if completed_task:
         auto_state = "celebrate"
-        auto_detail = f"🎉 任务搞定啦：《{completed_task['title']}》✨"
+        auto_detail = f"任务完成：《{completed_task['title']}》"
     elif ctx_pct >= 80:
         auto_state = "warning"
-        auto_detail = f"💦 上下文已达 {ctx_pct}%！快用 /compact 压缩~"
+        auto_detail = f"上下文已达 {ctx_pct}%，建议执行 /compact"
     elif len(running_tasks) > 0:
         auto_state = "coding"
-        auto_detail = f"⚡ 正在敲码：《{running_tasks[0]['title']}》"
+        auto_detail = f"正在处理：《{running_tasks[0]['title']}》"
     else:
         auto_state = "idle"
         auto_detail = ""
@@ -954,7 +956,7 @@ class PetRequestHandler(BaseHTTPRequestHandler):
                         if cid and cid in _task_tracker["running_map"]:
                             del _task_tracker["running_map"][cid]
                     if not detail:
-                        detail = f"🎉 任务搞定啦：《{info.get('title', '当前对话任务')}》✨"
+                        detail = f"任务完成：《{info.get('title', '当前对话任务')}》"
 
                 current_state["state"] = req_state
                 if detail:
@@ -1049,7 +1051,7 @@ class PetRequestHandler(BaseHTTPRequestHandler):
             if data.get("success"):
                 current_state["state"] = "celebrate"
                 ver_text = f" v{data.get('version', '')}" if data.get('version') else ""
-                current_state["detail"] = f"🎉 星星猫娘已成功升级至最新版本{ver_text}！✨"
+                current_state["detail"] = f"已升级至最新版本{ver_text}"
                 current_state["timestamp"] = time.time()
                 event_data = f"data: {json.dumps(current_state)}\n\n".encode("utf-8")
                 for q in list(sse_subscribers):

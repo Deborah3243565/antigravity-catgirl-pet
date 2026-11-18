@@ -6,98 +6,65 @@
   <title>Gemini 星星猫娘 · 桌宠挂件</title>
   <script src="https://www.gstatic.com/antigravity/web/dev/tailwindcss.min.js"></script>
   <style>
-    /* 果冻弹性与阻尼动画 */
+    /* 果冻弹性与阻尼动画（单缓出曲线，移除无意义循环抖动） */
     .jelly-pet {
-      transition: transform 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
+      transition: transform 0.25s cubic-bezier(0.22, 1, 0.36, 1);
       user-select: none;
       touch-action: none;
       cursor: grab;
     }
     .jelly-pet.grabbing {
       cursor: grabbing;
-      transform: scale(0.88, 1.18) !important;
-      transition: transform 0.08s ease !important;
+      transform: scale(0.92, 1.1) !important;
+      transition: transform 0.08s cubic-bezier(0.22, 1, 0.36, 1) !important;
     }
     .jelly-pet.flipped {
       transform: scaleX(-1);
     }
     .jelly-pet.flipped.grabbing {
-      transform: scaleX(-1) scale(0.88, 1.18) !important;
+      transform: scaleX(-1) scale(0.92, 1.1) !important;
     }
 
-    /* 任务完成 Duang 弹性脉冲 */
+    /* 任务完成弹性反馈（单次触达后即停） */
     @keyframes duangEffect {
       0% { transform: scale(1); }
-      30% { transform: scale(1.35, 0.7); }
-      55% { transform: scale(0.8, 1.25); }
-      75% { transform: scale(1.12, 0.9); }
-      90% { transform: scale(0.96, 1.04); }
+      35% { transform: scale(1.16, 0.86); }
+      70% { transform: scale(0.94, 1.08); }
       100% { transform: scale(1); }
     }
     .duang-active {
-      animation: duangEffect 0.65s cubic-bezier(0.34, 1.56, 0.64, 1) forwards !important;
+      animation: duangEffect 0.48s cubic-bezier(0.22, 1, 0.36, 1) forwards !important;
     }
     .flipped.duang-active {
-      animation: duangEffect 0.65s cubic-bezier(0.34, 1.56, 0.64, 1) forwards !important;
-    }
-
-    /* 敲代码微晃 */
-    @keyframes typingWiggle {
-      0%, 100% { transform: translateY(0px) rotate(0deg); }
-      25% { transform: translateY(-3px) rotate(-1.5deg); }
-      75% { transform: translateY(-2px) rotate(1.5deg); }
-    }
-    .typing-wiggle {
-      animation: typingWiggle 0.35s ease-in-out infinite;
-    }
-
-    /* 思考轻浮动 */
-    @keyframes thinkingFloat {
-      0%, 100% { transform: translateY(0px); }
-      50% { transform: translateY(-6px); }
-    }
-    .thinking-float {
-      animation: thinkingFloat 2s ease-in-out infinite;
-    }
-
-    /* 警报慌乱微抖 */
-    @keyframes panicShake {
-      0%, 100% { transform: translate(0, 0); }
-      20% { transform: translate(-3px, 1px); }
-      40% { transform: translate(3px, -1px); }
-      60% { transform: translate(-2px, -1px); }
-      80% { transform: translate(2px, 1px); }
-    }
-    .panic-shake {
-      animation: panicShake 0.25s linear infinite;
+      animation: duangEffect 0.48s cubic-bezier(0.22, 1, 0.36, 1) forwards !important;
     }
   </style>
 </head>
-<body class="bg-transparent text-[var(--foreground)] min-h-screen overflow-hidden p-3 antialiased font-sans select-none">
+<body class="bg-transparent text-[#ededed] min-h-screen overflow-hidden p-4 antialiased font-sans select-none">
   
   <div id="container" class="relative w-full h-screen flex flex-col justify-between">
     
-    <!-- 顶部极简状态 HUD -->
-    <header class="flex justify-between items-center px-2 py-1.5 rounded-xl bg-[var(--card)]/80 backdrop-blur border border-[var(--border)] shadow-sm text-xs">
-      <div class="flex items-center gap-1.5">
-        <span id="agent-state-dot" class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
-        <span id="agent-state-text" class="font-bold text-[var(--foreground)]">星星猫娘待命</span>
+    <!-- 顶部极简状态栏（Graphite 中性阶 + 4px 栅格） -->
+    <header class="flex justify-between items-center px-3 py-2 rounded-lg bg-[#141415]/95 border border-white/10 text-xs">
+      <div class="flex items-center gap-2">
+        <span id="agent-state-dot" class="w-1.5 h-1.5 rounded-full bg-[#4cc38a]"></span>
+        <span id="agent-state-text" class="font-medium text-[#ededed]">星星猫娘待命</span>
       </div>
-      <div class="flex items-center gap-2 font-mono text-[11px] text-[var(--muted-foreground)]">
+      <div class="flex items-center gap-2 font-mono text-[11px] text-[#a1a1a6] tabular-nums">
         <span id="hud-token">Token: 42k</span>
-        <button onclick="triggerDuang()" title="测试 Duang 提醒" class="px-2 py-0.5 rounded bg-[var(--secondary)] text-[var(--secondary-foreground)] hover:opacity-80 transition font-sans text-[10px]">
-          Duang~
+        <button onclick="triggerDuang()" title="预览完成反馈" class="px-2 py-1 rounded bg-[#232325] border border-white/10 text-[#ededed] hover:bg-[#2c2c2f] transition-colors font-sans text-[11px]">
+          预览完成
         </button>
       </div>
     </header>
 
-    <!-- 悬浮桌宠挂件核心主体 (支持全屏自由拖拽吸附) -->
+    <!-- 悬浮桌宠挂件核心主体 -->
     <div id="floating-pet" 
          class="jelly-pet absolute bottom-5 right-5 w-40 flex flex-col items-center z-30 select-none">
       
       <!-- 气泡对话框 -->
-      <div id="pet-bubble" class="opacity-0 transition-opacity duration-300 pointer-events-none mb-1 px-3 py-1.5 rounded-xl bg-[var(--card)] border border-[var(--border)] shadow-xl text-xs text-[var(--foreground)] font-bold text-center whitespace-nowrap">
-        Duang! 任务跑完啦~ ✨
+      <div id="pet-bubble" class="opacity-0 transition-opacity duration-200 pointer-events-none mb-1 px-3 py-1.5 rounded-lg bg-[#fafafa] border border-black/10 shadow-sm text-xs text-[#171717] font-medium text-center whitespace-nowrap">
+        任务已完成，点击即可查看详情
       </div>
 
       <!-- 角色立绘主体 -->
@@ -108,15 +75,14 @@
              alt="Gemini Star Catgirl" 
              class="w-32 h-36 object-contain pointer-events-none drop-shadow-md hidden">
         
-        <!-- 状态小角标 -->
-        <div id="status-badge" class="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-blue-500 border-2 border-white flex items-center justify-center text-[11px] text-white shadow-md font-bold">
-          ⭐
+        <!-- 线性状态角标 -->
+        <div id="status-badge" class="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-[#19191b] border border-white/20 flex items-center justify-center text-[#a1a1a6] shadow-sm">
         </div>
       </div>
 
-      <!-- 肚皮悬浮条 (Token 监控胶囊) -->
-      <div class="mt-1 px-3 py-0.5 rounded-full bg-[var(--card)]/90 backdrop-blur border border-[var(--border)] text-[10px] font-mono shadow-sm flex items-center gap-1.5">
-        <span id="badge-dot" class="inline-block w-1.5 h-1.5 rounded-full bg-green-500"></span>
+      <!-- 肚皮悬浮条 -->
+      <div class="mt-1 px-2.5 py-1 rounded-md bg-[#fafafa] border border-black/10 text-[11px] font-mono tabular-nums text-[#171717] shadow-sm flex items-center gap-1.5">
+        <span id="badge-dot" class="inline-block w-1.5 h-1.5 rounded-full bg-[#16a34a]"></span>
         <span id="pet-token-pill">Token: 42k</span>
       </div>
 
@@ -136,6 +102,15 @@
     const stateDot = document.getElementById('agent-state-dot');
     const stateText = document.getElementById('agent-state-text');
 
+    const BADGE_SVGS = {
+      idle: '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/></svg>',
+      thinking: '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>',
+      coding: '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>',
+      celebrate: '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>',
+      warning: '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>'
+    };
+    statusBadge.innerHTML = BADGE_SVGS.idle;
+
     const sprites = {
       idle: "/assets/idle.png",
       thinking: "/assets/thinking.png",
@@ -145,7 +120,7 @@
     };
 
     function clearAnimations() {
-      pet.classList.remove('duang-active', 'typing-wiggle', 'thinking-float', 'panic-shake');
+      pet.classList.remove('duang-active');
     }
 
     function applyState(data) {
@@ -183,41 +158,43 @@
 
       switch(state) {
         case 'thinking':
-          statusBadge.textContent = '💭';
-          statusBadge.className = "absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-purple-500 border-2 border-white flex items-center justify-center text-[11px] text-white shadow-md font-bold";
-          stateDot.className = "w-2 h-2 rounded-full bg-purple-500 animate-pulse";
-          stateText.textContent = "Agent 思考中...";
-          pet.classList.add('thinking-float');
-          showBubble(detail || "让我想想怎么写最优喵... 💭", 2200);
+          statusBadge.innerHTML = BADGE_SVGS.thinking;
+          statusBadge.style.borderColor = 'rgba(237, 237, 237, 0.28)';
+          statusBadge.style.color = '#ededed';
+          stateDot.className = "w-1.5 h-1.5 rounded-full bg-[#a1a1a6]";
+          stateText.textContent = "思考中";
+          showBubble(detail || "让本喵想想怎么写更合适", 2200);
           break;
         case 'coding':
-          statusBadge.textContent = '⚡';
-          statusBadge.className = "absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-cyan-500 border-2 border-white flex items-center justify-center text-[11px] text-white shadow-md font-bold";
-          stateDot.className = "w-2 h-2 rounded-full bg-cyan-500 animate-ping";
-          stateText.textContent = "敲键盘码字中";
-          pet.classList.add('typing-wiggle');
-          showBubble(detail || "哒哒哒！疯狂敲键盘输出中~ ⌨️", 2200);
+          statusBadge.innerHTML = BADGE_SVGS.coding;
+          statusBadge.style.borderColor = 'rgba(56, 189, 248, 0.55)';
+          statusBadge.style.color = '#38bdf8';
+          stateDot.className = "w-1.5 h-1.5 rounded-full bg-[#38bdf8]";
+          stateText.textContent = "处理任务中";
+          showBubble(detail || "正在全速敲键盘输出中", 2200);
           break;
         case 'celebrate':
-          statusBadge.textContent = '🎉';
-          statusBadge.className = "absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-emerald-500 border-2 border-white flex items-center justify-center text-[11px] text-white shadow-md font-bold";
-          stateDot.className = "w-2 h-2 rounded-full bg-emerald-500";
-          stateText.textContent = "任务搞定啦！";
+          statusBadge.innerHTML = BADGE_SVGS.celebrate;
+          statusBadge.style.borderColor = 'rgba(76, 195, 138, 0.6)';
+          statusBadge.style.color = '#4cc38a';
+          stateDot.className = "w-1.5 h-1.5 rounded-full bg-[#4cc38a]";
+          stateText.textContent = "任务已完成";
           pet.classList.add('duang-active');
-          showBubble(detail || "🔔 Duang! 任务搞定啦，快来验收！✨", 3200);
+          showBubble(detail || "任务搞定啦，快来验收吧", 3200);
           break;
         case 'warning':
-          statusBadge.textContent = '⚠️';
-          statusBadge.className = "absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-amber-500 border-2 border-white flex items-center justify-center text-[11px] text-white shadow-md font-bold";
-          stateDot.className = "w-2 h-2 rounded-full bg-amber-500 animate-ping";
-          stateText.textContent = "上下文水位超 80%！";
-          pet.classList.add('panic-shake');
-          showBubble(detail || "💦 满头大汗！快输入 /compact 帮我压缩减负~", 3500);
+          statusBadge.innerHTML = BADGE_SVGS.warning;
+          statusBadge.style.borderColor = 'rgba(229, 72, 77, 0.7)';
+          statusBadge.style.color = '#e5484d';
+          stateDot.className = "w-1.5 h-1.5 rounded-full bg-[#e5484d]";
+          stateText.textContent = "上下文水位达 80%";
+          showBubble(detail || "上下文已偏高，建议执行 /compact", 3500);
           break;
         default: // idle
-          statusBadge.textContent = '⭐';
-          statusBadge.className = "absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-blue-500 border-2 border-white flex items-center justify-center text-[11px] text-white shadow-md font-bold";
-          stateDot.className = "w-2 h-2 rounded-full bg-green-500";
+          statusBadge.innerHTML = BADGE_SVGS.idle;
+          statusBadge.style.borderColor = 'rgba(237, 237, 237, 0.2)';
+          statusBadge.style.color = '#a1a1a6';
+          stateDot.className = "w-1.5 h-1.5 rounded-full bg-[#4cc38a]";
           stateText.textContent = "星星猫娘待命";
           break;
       }
@@ -282,7 +259,7 @@
     }
 
     function triggerDuang() {
-      applyState({ state: 'celebrate', detail: '🔔 Duang! 任务完成啦，快来验收！' });
+      applyState({ state: 'celebrate', detail: '任务已完成，可以验收啦' });
     }
 
     // 连接 SSE 实时状态流
