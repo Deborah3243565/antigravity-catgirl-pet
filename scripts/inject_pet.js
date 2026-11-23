@@ -19,7 +19,10 @@ function getCdpPort() {
       if (!isNaN(portNum) && portNum > 0) return portNum;
     }
   }
-  throw new Error('未找到 DevToolsActivePort 文件，请确认 Antigravity 正在运行');
+  throw new Error(
+    '未找到 DevToolsActivePort 文件：新版 Antigravity 默认未开启 CDP 调试端口（或刚自动更新重启）。\n' +
+    '请运行插件根目录的 fix_cdp.bat（或为 Antigravity 快捷方式添加启动参数 --remote-debugging-port=0），然后完全退出并从快捷方式重新启动 Antigravity。'
+  );
 }
 
 function getBase64Images() {

@@ -81,6 +81,34 @@ git clone https://github.com/Deborah3243565/antigravity-catgirl-pet.git ~/.gemin
 
 ---
 
+## 🔧 新版 Antigravity 适配（更新后桌宠不显示一键修复）
+
+> **为什么新版 / 自动更新后桌宠不显示？**  
+> 新版 Antigravity 默认不再自动开启 CDP 调试端口（且自动更新重启时会以 `--updated` 拉起，不会携带调试参数），导致 `DevToolsActivePort` 文件缺失、注入脚本无法连接界面。
+
+任选以下**任意一种方式**即可 10 秒恢复：
+
+### 方式 A：双击一键修复脚本（Windows 推荐）
+1. 打开插件目录（`~/.gemini/config/plugins/antigravity-catgirl-pet/`）或本仓库根目录；
+2. 双击运行 **`fix_cdp.bat`**（会自动为桌面、开始菜单、任务栏的 `Antigravity` 快捷方式补全 `--remote-debugging-port=0`）；
+3. **完全退出** Antigravity 后从快捷方式重新打开即可。
+
+### 方式 B：让 Antigravity AI 一句话帮你修
+直接在 Antigravity 对话框发送：
+```text
+帮我检查桌面和开始菜单的 Antigravity 快捷方式，自动添加 --remote-debugging-port=0 启动参数以适配星星猫娘桌宠
+```
+
+### 方式 C：手动添加启动参数（跨平台）
+- **Windows**：右键 Antigravity 快捷方式 →「属性」→ 在「目标(T)」末尾空格后追加 `--remote-debugging-port=0`，完全退出后从快捷方式重启。
+- **macOS**：终端执行：
+  ```bash
+  open -a Antigravity --args --remote-debugging-port=0
+  ```
+- **Linux**：启动命令末尾加上 `--remote-debugging-port=0`。
+
+---
+
 ## 🎮 操作指南
 
 | 交互方式 | 触发效果 |
