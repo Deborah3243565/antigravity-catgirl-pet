@@ -80,6 +80,19 @@ async function main() {
   const initialScale = (typeof petConfig.scale === 'number' && !isNaN(petConfig.scale))
     ? Math.max(0.4, Math.min(2.5, petConfig.scale))
     : 1.3;
+  const initialAutoUpdate = typeof petConfig.autoUpdate === 'boolean' ? petConfig.autoUpdate : true;
+  const initialAutoCompact = typeof petConfig.autoCompact === 'boolean' ? petConfig.autoCompact : true;
+  const initialCompactThreshold = (typeof petConfig.autoCompactThreshold === 'number' && !isNaN(petConfig.autoCompactThreshold))
+    ? Math.max(50, Math.min(95, Math.round(petConfig.autoCompactThreshold)))
+    : 80;
+  let initialVersion = '1.2.4';
+  try {
+    const pjPath = path.join(__dirname, '..', 'plugin.json');
+    if (fs.existsSync(pjPath)) {
+      const pj = JSON.parse(fs.readFileSync(pjPath, 'utf8'));
+      if (pj && pj.version) initialVersion = String(pj.version);
+    }
+  } catch (e) {}
 
   let port;
   try {
@@ -207,6 +220,11 @@ async function main() {
           (function() {
             window.__catgirl_sidecar_port = ${sidecarPort};
             window.__catgirl_initial_scale = ${initialScale};
+            window.__catgirl_initial_auto_update = ${initialAutoUpdate};
+            window.__catgirl_initial_auto_compact = ${initialAutoCompact};
+            window.__catgirl_initial_compact_threshold = ${initialCompactThreshold};
+            window.__catgirl_initial_version = ${JSON.stringify(initialVersion)};
+            window.__catgirl_compact_abort = false;
             function mountPet() {
               if (!document.body || !document.head) {
                 if (document.readyState === 'loading') {
@@ -225,6 +243,10 @@ async function main() {
             if (window.__catgirl_sync_timer) {
               clearInterval(window.__catgirl_sync_timer);
               window.__catgirl_sync_timer = null;
+            }
+            if (window.__catgirl_auto_update_timer) {
+              clearInterval(window.__catgirl_auto_update_timer);
+              window.__catgirl_auto_update_timer = null;
             }
             if (window.__catgirl_model_observer) {
               try { window.__catgirl_model_observer.disconnect(); } catch(e) {}
@@ -260,6 +282,11 @@ async function main() {
                 clearInterval(window.__catgirl_sync_timer);
                 window.__catgirl_sync_timer = null;
               }
+              if (window.__catgirl_auto_update_timer) {
+                clearInterval(window.__catgirl_auto_update_timer);
+                window.__catgirl_auto_update_timer = null;
+              }
+              window.__catgirl_compact_abort = true;
               if (window.__catgirl_sse) {
                 try { window.__catgirl_sse.close(); } catch(e) {}
                 window.__catgirl_sse = null;
@@ -2005,6 +2032,65 @@ async function main() {
                 background: var(--cg-hover-bg);
                 border-color: var(--cg-border-strong);
               }
+              .catgirl-auto-update-row {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                padding: 4px 6px;
+                border-radius: 5px;
+                background: var(--cg-panel-bg);
+                border: 1px solid var(--cg-border-subtle);
+                cursor: pointer;
+                user-select: none;
+                transition: background-color 0.14s ease, border-color 0.14s ease;
+              }
+              .catgirl-auto-update-row:hover {
+                background: var(--cg-hover-bg);
+                border-color: var(--cg-border);
+              }
+              .catgirl-auto-update-label {
+                font-size: 10px;
+                color: var(--cg-text-muted);
+                display: flex;
+                align-items: center;
+                gap: 4px;
+              }
+              .catgirl-compact-threshold-input {
+                width: 34px;
+                height: 18px;
+                padding: 0 3px;
+                border-radius: 4px;
+                border: 1px solid var(--cg-border);
+                background: var(--cg-surface-bg);
+                color: var(--cg-text);
+                font-size: 10px;
+                font-weight: 600;
+                text-align: center;
+                outline: none;
+                font-variant-numeric: tabular-nums;
+              }
+              .catgirl-compact-threshold-input:focus {
+                border-color: var(--cg-accent);
+              }
+              .catgirl-compact-threshold-input::-webkit-inner-spin-button,
+              .catgirl-compact-threshold-input::-webkit-outer-spin-button {
+                -webkit-appearance: none;
+                margin: 0;
+              }
+              .catgirl-auto-update-pill {
+                font-size: 10px;
+                font-weight: 600;
+                padding: 1px 7px;
+                border-radius: 999px;
+                border: 1px solid var(--cg-border);
+                color: var(--cg-text-muted);
+                background: var(--cg-surface-bg);
+              }
+              .catgirl-auto-update-pill.is-on {
+                color: #4cc38a;
+                border-color: rgba(76, 195, 138, 0.45);
+                background: rgba(76, 195, 138, 0.12);
+              }
               .catgirl-update-detail {
                 font-size: 10px;
                 line-height: 1.4;
@@ -2458,12 +2544,24 @@ async function main() {
                   <div class="catgirl-slider-header-left">
                     <span class="catgirl-icon-slot">\${CG_ICONS.bolt}</span>
                     <span style="font-weight: 500; font-size: 11px;">版本状态</span>
-                    <span id="pet-version-tag" class="catgirl-version-tag">v1.2.1</span>
+                    <span id="pet-version-tag" class="catgirl-version-tag">v\${window.__catgirl_initial_version || '1.2.4'}</span>
                   </div>
                   <button id="pet-check-update-btn" class="catgirl-update-check-btn" title="检查 GitHub 远程版本">
                     <span id="pet-update-icon">\${CG_ICONS.refresh}</span>
                     <span id="pet-check-btn-text">检查更新</span>
                   </button>
+                </div>
+                <div class="catgirl-auto-update-row" id="pet-auto-update-toggle" title="开启后后台检测到新版本将自动下载并热重载">
+                  <span class="catgirl-auto-update-label">自动更新（后台静默）</span>
+                  <span id="pet-auto-update-pill" class="catgirl-auto-update-pill is-on">开</span>
+                </div>
+                <div class="catgirl-auto-update-row" id="pet-auto-compact-toggle" title="上下文达到设定阈值时自动发送 /compact 压缩，若任务运行中则压缩后自动继续">
+                  <span class="catgirl-auto-update-label">
+                    <span>自动压缩 ≥</span>
+                    <input type="number" id="pet-compact-threshold-input" class="catgirl-compact-threshold-input" min="50" max="95" step="1" value="80" title="设置触发 /compact 的上下文百分比阈值 (50%-95%)" />
+                    <span>%</span>
+                  </span>
+                  <span id="pet-auto-compact-pill" class="catgirl-auto-update-pill is-on">开</span>
                 </div>
                 <div id="pet-update-status-detail" class="catgirl-update-detail" style="display: none;"></div>
               </div>
@@ -4148,9 +4246,57 @@ async function main() {
               setScale(1.0, 'preset');
             }
 
-            // 版本检查与一键更新逻辑
-            let currentVersion = '1.2.1';
+            // 版本检查、自动更新与一键升级逻辑
+            let currentVersion = window.__catgirl_initial_version || '1.2.4';
             let latestUpdateInfo = null;
+            let isUpgrading = false;
+            let lastAutoAttemptedKey = '';
+            let autoUpdateEnabled = (typeof window.__catgirl_initial_auto_update === 'boolean')
+              ? window.__catgirl_initial_auto_update
+              : true;
+
+            try {
+              const savedAuto = localStorage.getItem('antigravity_catgirl_auto_update');
+              if (savedAuto === 'true' || savedAuto === 'false') {
+                autoUpdateEnabled = (savedAuto === 'true');
+              }
+            } catch (e) {}
+
+            function renderAutoUpdatePill() {
+              const pill = document.getElementById('pet-auto-update-pill');
+              if (!pill) return;
+              pill.textContent = autoUpdateEnabled ? '开' : '关';
+              pill.classList.toggle('is-on', autoUpdateEnabled);
+            }
+
+            function setAutoUpdateEnabled(enabled, persist = true) {
+              autoUpdateEnabled = Boolean(enabled);
+              renderAutoUpdatePill();
+              try {
+                localStorage.setItem('antigravity_catgirl_auto_update', String(autoUpdateEnabled));
+              } catch (e) {}
+              if (persist) {
+                const scPort = window.__catgirl_sidecar_port || 18980;
+                fetch(\`http://127.0.0.1:\${scPort}/api/config\`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ autoUpdate: autoUpdateEnabled })
+                }).catch(() => {});
+              }
+            }
+
+            renderAutoUpdatePill();
+
+            try {
+              const scPortCfg = window.__catgirl_sidecar_port || 18980;
+              fetch(\`http://127.0.0.1:\${scPortCfg}/api/config\`)
+                .then(r => r.json())
+                .then(cfg => {
+                  if (cfg && typeof cfg.autoUpdate === 'boolean') {
+                    setAutoUpdateEnabled(cfg.autoUpdate, false);
+                  }
+                }).catch(() => {});
+            } catch (e) {}
 
             async function checkPetUpdate(manual = false) {
               const scPort = window.__catgirl_sidecar_port || 18980;
@@ -4192,9 +4338,16 @@ async function main() {
                     if (upBtn) {
                       upBtn.addEventListener('click', (e) => {
                         e.stopPropagation();
-                        performUpgrade();
+                        performUpgrade(false);
                       });
                     }
+                  }
+                  const targetKey = \`\${data.latestVersion || ''}:\${data.latestCommit || ''}\`;
+                  if (!manual && autoUpdateEnabled && !isUpgrading && targetKey !== lastAutoAttemptedKey) {
+                    lastAutoAttemptedKey = targetKey;
+                    showBubble(\`发现新版本 v\${data.latestVersion || '最新'}，正在后台自动更新...\`, 2800);
+                    await performUpgrade(true);
+                    return;
                   }
                   if (manual) {
                     showBubble(\`发现新版本 v\${data.latestVersion}，可在右键菜单一键更新\`, 2600);
@@ -4225,14 +4378,18 @@ async function main() {
               }
             }
 
-            async function performUpgrade() {
+            async function performUpgrade(isAuto = false) {
+              if (isUpgrading) return;
+              isUpgrading = true;
               const upBtn = document.getElementById('pet-upgrade-btn');
               const scPort = window.__catgirl_sidecar_port || 18980;
               if (upBtn) {
                 upBtn.disabled = true;
-                upBtn.innerHTML = '<span>正在拉取更新并配置...</span>';
+                upBtn.innerHTML = \`<span>\${isAuto ? '正在后台自动更新...' : '正在拉取更新并配置...'}</span>\`;
               }
-              showBubble('正在从 GitHub 拉取最新代码与配置...', 4000);
+              if (!isAuto) {
+                showBubble('正在从 GitHub 拉取最新代码与配置...', 4000);
+              }
 
               try {
                 const res = await fetch(\`http://127.0.0.1:\${scPort}/api/upgrade\`, {
@@ -4242,25 +4399,26 @@ async function main() {
                 const result = await res.json();
                 if (result.success) {
                   const newVer = result.version || (latestUpdateInfo ? latestUpdateInfo.latestVersion : '最新版');
+                  currentVersion = newVer;
                   const tag = document.getElementById('pet-version-tag');
                   if (tag) tag.textContent = \`v\${newVer}\`;
                   const detailEl = document.getElementById('pet-update-status-detail');
                   if (detailEl) {
                     detailEl.innerHTML = \`
-                      <div style="color: #4cc38a; font-weight: 500;">一键更新配置完成</div>
+                      <div style="color: #4cc38a; font-weight: 500;">\${isAuto ? '后台自动更新完成' : '一键更新配置完成'}</div>
                       <div style="font-size: 10px; color: #a1a1a6;">当前版本：v\${newVer}</div>
                     \`;
                     if (typeof positionContextMenu === 'function') positionContextMenu();
                   }
                   if (window.__antigravityCatgirl?.setState) {
-                    window.__antigravityCatgirl.setState('celebrate', \`已升级至最新版本 v\${newVer} 喵\`, null, { force: true });
+                    window.__antigravityCatgirl.setState('celebrate', \`已\${isAuto ? '自动' : ''}升级至最新版本 v\${newVer} 喵\`, null, { force: true });
                   }
                 } else {
                   if (upBtn) {
                     upBtn.disabled = false;
                     upBtn.innerHTML = '<span>更新失败，点击重试</span>';
                   }
-                  showBubble(\`更新失败：\${result.error || '请检查网络'}\`, 2600);
+                  showBubble(\`\${isAuto ? '自动更新失败' : '更新失败'}：\${result.error || '请检查网络'}\`, 2600);
                 }
               } catch (err) {
                 if (upBtn) {
@@ -4268,12 +4426,23 @@ async function main() {
                   upBtn.innerHTML = '<span>请求超时，点击重试</span>';
                 }
                 showBubble('更新请求超时，请检查网络', 2500);
+              } finally {
+                isUpgrading = false;
               }
             }
 
             const menuUpdateCard = document.getElementById('menu-update-card');
             if (menuUpdateCard) {
               menuUpdateCard.addEventListener('click', (e) => e.stopPropagation());
+            }
+
+            const autoUpdateToggle = document.getElementById('pet-auto-update-toggle');
+            if (autoUpdateToggle) {
+              autoUpdateToggle.addEventListener('click', (e) => {
+                e.stopPropagation();
+                setAutoUpdateEnabled(!autoUpdateEnabled, true);
+                showBubble(autoUpdateEnabled ? '已开启后台自动更新' : '已关闭后台自动更新', 1800);
+              });
             }
 
             const checkUpdateBtn = document.getElementById('pet-check-update-btn');
@@ -4284,10 +4453,305 @@ async function main() {
               });
             }
 
-            // 启动 4.5 秒后在后台静默检查一次更新
+            // 启动 4.5 秒后在后台静默检查一次更新，并每 30 分钟定时检查
             setTimeout(() => {
               checkPetUpdate(false);
             }, 4500);
+            window.__catgirl_auto_update_timer = setInterval(() => {
+              if (autoUpdateEnabled) {
+                checkPetUpdate(false);
+              }
+            }, 30 * 60 * 1000);
+
+            // 自动 /compact 压缩（阈值可自定义，默认 80%，支持任务运行中触发并在压缩后自动继续）
+            const AUTO_COMPACT_COOLDOWN_MS = 180000;
+            const AUTO_COMPACT_TIMEOUT_MS = 120000;
+            let autoCompactEnabled = (typeof window.__catgirl_initial_auto_compact === 'boolean')
+              ? window.__catgirl_initial_auto_compact
+              : true;
+            let autoCompactThreshold = (typeof window.__catgirl_initial_compact_threshold === 'number' && !isNaN(window.__catgirl_initial_compact_threshold))
+              ? Math.max(50, Math.min(95, Math.round(window.__catgirl_initial_compact_threshold)))
+              : 80;
+
+            try {
+              const savedCompact = localStorage.getItem('antigravity_catgirl_auto_compact');
+              if (savedCompact === 'true' || savedCompact === 'false') {
+                autoCompactEnabled = (savedCompact === 'true');
+              }
+              const savedThresh = parseInt(localStorage.getItem('antigravity_catgirl_compact_threshold') || '', 10);
+              if (!isNaN(savedThresh) && savedThresh >= 50 && savedThresh <= 95) {
+                autoCompactThreshold = savedThresh;
+              }
+            } catch (e) {}
+
+            function renderAutoCompactPill() {
+              const pill = document.getElementById('pet-auto-compact-pill');
+              if (pill) {
+                pill.textContent = autoCompactEnabled ? '开' : '关';
+                pill.classList.toggle('is-on', autoCompactEnabled);
+              }
+              const threshInput = document.getElementById('pet-compact-threshold-input');
+              if (threshInput && document.activeElement !== threshInput) {
+                threshInput.value = String(autoCompactThreshold);
+              }
+            }
+
+            function setAutoCompactEnabled(enabled, persist = true) {
+              autoCompactEnabled = Boolean(enabled);
+              renderAutoCompactPill();
+              try {
+                localStorage.setItem('antigravity_catgirl_auto_compact', String(autoCompactEnabled));
+              } catch (e) {}
+              if (persist) {
+                const scPort = window.__catgirl_sidecar_port || 18980;
+                fetch(\`http://127.0.0.1:\${scPort}/api/config\`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ autoCompact: autoCompactEnabled })
+                }).catch(() => {});
+              }
+            }
+
+            function setAutoCompactThreshold(val, persist = true) {
+              const clamped = Math.max(50, Math.min(95, Math.round(Number(val) || 80)));
+              autoCompactThreshold = clamped;
+              renderAutoCompactPill();
+              try {
+                localStorage.setItem('antigravity_catgirl_compact_threshold', String(clamped));
+              } catch (e) {}
+              if (persist) {
+                const scPort = window.__catgirl_sidecar_port || 18980;
+                fetch(\`http://127.0.0.1:\${scPort}/api/config\`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ autoCompactThreshold: clamped })
+                }).catch(() => {});
+              }
+            }
+
+            renderAutoCompactPill();
+
+            try {
+              const scPortCompactCfg = window.__catgirl_sidecar_port || 18980;
+              fetch(\`http://127.0.0.1:\${scPortCompactCfg}/api/config\`)
+                .then(r => r.json())
+                .then(cfg => {
+                  if (cfg && typeof cfg.autoCompact === 'boolean') {
+                    setAutoCompactEnabled(cfg.autoCompact, false);
+                  }
+                  if (cfg && typeof cfg.autoCompactThreshold === 'number' && !isNaN(cfg.autoCompactThreshold)) {
+                    setAutoCompactThreshold(cfg.autoCompactThreshold, false);
+                  }
+                }).catch(() => {});
+            } catch (e) {}
+
+            const compactThresholdInput = document.getElementById('pet-compact-threshold-input');
+            if (compactThresholdInput) {
+              compactThresholdInput.addEventListener('click', (e) => e.stopPropagation());
+              compactThresholdInput.addEventListener('pointerdown', (e) => e.stopPropagation());
+              compactThresholdInput.addEventListener('change', (e) => {
+                const v = parseInt(e.target.value, 10);
+                if (!isNaN(v)) {
+                  setAutoCompactThreshold(v, true);
+                  showBubble(\`自动压缩阈值已设为 ≥\${autoCompactThreshold}%\`, 1800);
+                } else {
+                  renderAutoCompactPill();
+                }
+              });
+              compactThresholdInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  compactThresholdInput.blur();
+                }
+              });
+            }
+
+            const autoCompactToggle = document.getElementById('pet-auto-compact-toggle');
+            if (autoCompactToggle) {
+              autoCompactToggle.addEventListener('click', (e) => {
+                if (e.target === compactThresholdInput) return;
+                e.stopPropagation();
+                setAutoCompactEnabled(!autoCompactEnabled, true);
+                showBubble(autoCompactEnabled ? \`已开启自动 /compact 压缩 (≥\${autoCompactThreshold}%)\` : '已关闭自动 /compact 压缩', 1800);
+              });
+            }
+
+            const compactState = {
+              phase: 'idle',
+              lastCompactAt: 0,
+              triggeredAt: 0,
+              peakPctAtTrigger: 0,
+              wasRunningBeforeCompact: false
+            };
+
+            function findHostChatInput() {
+              const candidates = document.querySelectorAll(
+                'div[data-lexical-editor="true"][aria-label="Message input"], div[data-lexical-editor="true"][role="combobox"], div[contenteditable="true"][aria-label="Message input"]'
+              );
+              for (const el of candidates) {
+                const rect = el.getBoundingClientRect();
+                if (rect && rect.width > 50 && rect.height > 15) {
+                  return el;
+                }
+              }
+              return null;
+            }
+
+            function isHostAgentRunning(stats) {
+              const hasCancelBtn = Boolean(document.querySelector('button[aria-label*="Cancel"]'));
+              const runningCount = Array.isArray(stats?.runningTasks) ? stats.runningTasks.length : 0;
+              return hasCancelBtn || runningCount > 0 || Boolean(stats?.hasRunningTask);
+            }
+
+            function findHostSendButton() {
+              const btns = document.querySelectorAll('button');
+              for (const b of btns) {
+                if (b.disabled) continue;
+                const aria = (b.getAttribute('aria-label') || b.getAttribute('title') || '').toLowerCase();
+                if (!aria) continue;
+                if (aria.includes('cancel') || aria.includes('voice') || aria.includes('context')) continue;
+                if (aria.includes('send') || aria.includes('submit') || aria.includes('发送')) {
+                  const rect = b.getBoundingClientRect();
+                  if (rect && rect.width > 0 && rect.top > window.innerHeight * 0.45) {
+                    return b;
+                  }
+                }
+              }
+              return null;
+            }
+
+            function dispatchEnterKey(targetEl) {
+              const evtInit = { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true, cancelable: true };
+              targetEl.dispatchEvent(new KeyboardEvent('keydown', evtInit));
+              targetEl.dispatchEvent(new KeyboardEvent('keypress', evtInit));
+              targetEl.dispatchEvent(new KeyboardEvent('keyup', evtInit));
+            }
+
+            function waitMs(ms) {
+              return new Promise((resolve) => setTimeout(resolve, ms));
+            }
+
+            async function submitHostChatMessage(text, isSlashCommand = false) {
+              if (window.__catgirl_compact_abort) return false;
+              const inputEl = findHostChatInput();
+              if (!inputEl) return false;
+
+              // 绝不覆盖用户正在编辑的未发送文本
+              const existingText = (inputEl.innerText || inputEl.textContent || '').trim();
+              if (existingText.length > 0) return false;
+
+              try {
+                inputEl.focus();
+                const sel = window.getSelection();
+                if (sel) {
+                  const range = document.createRange();
+                  range.selectNodeContents(inputEl);
+                  range.collapse(false);
+                  sel.removeAllRanges();
+                  sel.addRange(range);
+                }
+                document.execCommand('insertText', false, text);
+                inputEl.dispatchEvent(new Event('input', { bubbles: true }));
+              } catch (e) {
+                return false;
+              }
+
+              await waitMs(340);
+              if (window.__catgirl_compact_abort) return false;
+
+              if (isSlashCommand) {
+                const slashPopup = document.querySelector('[role="listbox"], [role="menu"]');
+                if (slashPopup) {
+                  dispatchEnterKey(inputEl);
+                  await waitMs(240);
+                  if (window.__catgirl_compact_abort) return false;
+                }
+              }
+
+              const afterText = (inputEl.innerText || inputEl.textContent || '').trim();
+              if (afterText.length > 0) {
+                const sendBtn = findHostSendButton();
+                if (sendBtn) {
+                  sendBtn.click();
+                } else {
+                  dispatchEnterKey(inputEl);
+                }
+                await waitMs(220);
+              }
+
+              return true;
+            }
+
+            async function checkAndRunAutoCompact(stats, effectiveCtxPct) {
+              if (window.__catgirl_compact_abort) return;
+              const now = Date.now();
+              const pct = Number(effectiveCtxPct || 0);
+
+              if (compactState.phase === 'idle') {
+                if (!autoCompactEnabled) return;
+                if (pct < autoCompactThreshold) return;
+                if (now - compactState.lastCompactAt < AUTO_COMPACT_COOLDOWN_MS) return;
+
+                const inputEl = findHostChatInput();
+                if (!inputEl) return;
+                const existingText = (inputEl.innerText || inputEl.textContent || '').trim();
+                if (existingText.length > 0) return;
+
+                compactState.wasRunningBeforeCompact = isHostAgentRunning(stats);
+                compactState.peakPctAtTrigger = pct;
+                compactState.lastCompactAt = now;
+                compactState.triggeredAt = now;
+                compactState.phase = 'sending_compact';
+
+                showBubble(
+                  compactState.wasRunningBeforeCompact
+                    ? \`上下文已达 \${pct}%，正在自动执行 /compact 压缩，完成后将自动继续任务...\`
+                    : \`上下文已达 \${pct}%，正在自动执行 /compact 压缩...\`,
+                  3200
+                );
+
+                const sent = await submitHostChatMessage('/compact', true);
+                if (!sent || window.__catgirl_compact_abort) {
+                  compactState.phase = 'idle';
+                  compactState.wasRunningBeforeCompact = false;
+                  return;
+                }
+                compactState.phase = 'waiting_compact_done';
+                return;
+              }
+
+              if (compactState.phase === 'waiting_compact_done') {
+                const elapsed = now - compactState.triggeredAt;
+                if (elapsed > AUTO_COMPACT_TIMEOUT_MS) {
+                  compactState.phase = 'idle';
+                  compactState.wasRunningBeforeCompact = false;
+                  return;
+                }
+                if (elapsed < 3000) return;
+
+                const agentRunning = isHostAgentRunning(stats);
+                const ctxDropped = (pct > 0 && pct <= Math.max(65, compactState.peakPctAtTrigger - 15));
+                const finishedIdle = (!agentRunning && (ctxDropped || (elapsed >= 6000 && pct < compactState.peakPctAtTrigger)));
+
+                if (finishedIdle) {
+                  if (compactState.wasRunningBeforeCompact) {
+                    compactState.phase = 'resuming_task';
+                    await waitMs(700);
+                    if (window.__catgirl_compact_abort) return;
+                    const resumed = await submitHostChatMessage('继续刚才未完成的任务', false);
+                    if (resumed) {
+                      showBubble(\`上下文压缩完成（当前 \${pct}%），已自动发送「继续」恢复任务喵\`, 3200);
+                    } else {
+                      showBubble(\`上下文压缩完成（当前 \${pct}%），请点击继续任务喵\`, 3000);
+                    }
+                  } else {
+                    showBubble(\`上下文自动压缩完成（当前 \${pct}%）喵\`, 2800);
+                  }
+                  compactState.phase = 'idle';
+                  compactState.wasRunningBeforeCompact = false;
+                }
+              }
+            }
 
             // Agent 状态分发（防抖动，避免重复切换与重复弹窗）
             window.__antigravityCatgirl = {
@@ -4945,6 +5409,7 @@ async function main() {
               ensureActiveVideoPlaying();
               if (!stats) return;
               renderRunningTasksMenu(stats.runningTasks || []);
+              checkAndRunAutoCompact(stats, effectiveCtxPct);
 
               if (Date.now() < previewLockUntil) {
                 return;
