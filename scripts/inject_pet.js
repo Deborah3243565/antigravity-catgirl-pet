@@ -4350,8 +4350,11 @@ async function main() {
             // 1. 深度动态感知 Antigravity 输入框/对话当前实时生效的具体模型
             function detectActiveComposerModel() {
               try {
+                const isPetElement = (el) => Boolean(el && el.closest && el.closest('#catgirl-pet-dock, #catgirl-dashboard-hud, #catgirl-analytics-modal, #catgirl-context-menu, #catgirl-toast'));
+
                 // 优先从 Antigravity 宿主底部输入框旁的模型选择按钮（带有 aria-label="Select model, current: ..."）提取
                 const composerBtn = Array.from(document.querySelectorAll('button')).find(b => {
+                  if (isPetElement(b)) return false;
                   const aria = b.getAttribute('aria-label') || '';
                   const low = aria.toLowerCase();
                   return low.indexOf('select model') !== -1 || aria.indexOf('选择模型') !== -1;
@@ -4367,14 +4370,27 @@ async function main() {
                   if (txt) return txt;
                 }
 
-                // 备用：深度广谱搜索位于界面下半部（输入框附近）包含模型关键字的按钮
+                // 备用：深度广谱搜索位于界面下半部（输入框附近）包含模型关键字的宿主按钮（严格排除桌宠自身 UI）
                 const allBtns = Array.from(document.querySelectorAll('button')).filter(el => {
+                  if (isPetElement(el)) return false;
                   const r = el.getBoundingClientRect();
                   return el.isConnected && r.width > 0 && r.height > 0 && r.top > (window.innerHeight * 0.4);
                 });
                 for (const btn of allBtns) {
                   const txt = (btn.getAttribute('aria-label') || btn.textContent || '').trim();
-                  if (txt.indexOf('Hydrogen') !== -1 || txt.indexOf('Flash') !== -1 || txt.indexOf('Argon') !== -1 || txt.indexOf('Claude') !== -1 || txt.indexOf('GPT') !== -1 || txt.indexOf('Opus') !== -1 || txt.indexOf('Sonnet') !== -1) {
+                  if (
+                    txt.indexOf('Gemini') !== -1 ||
+                    txt.indexOf('Neon') !== -1 ||
+                    txt.indexOf('Carbon') !== -1 ||
+                    txt.indexOf('Orchestrator') !== -1 ||
+                    txt.indexOf('Hydrogen') !== -1 ||
+                    txt.indexOf('Flash') !== -1 ||
+                    txt.indexOf('Argon') !== -1 ||
+                    txt.indexOf('Claude') !== -1 ||
+                    txt.indexOf('GPT') !== -1 ||
+                    txt.indexOf('Opus') !== -1 ||
+                    txt.indexOf('Sonnet') !== -1
+                  ) {
                     return txt;
                   }
                 }
@@ -4493,7 +4509,12 @@ async function main() {
                 }
 
                 if (service) {
-                  const response = await service.retrieveUserQuotaSummary(undefined, false);
+                  const shouldForceServer = Boolean(force) || (now - (allHostQuotasCache.lastServerRefresh || 0) >= 20000);
+                  const response = await Promise.race([
+                    service.retrieveUserQuotaSummary(shouldForceServer),
+                    new Promise((_, reject) => setTimeout(() => reject(new Error('quota timeout')), 4500))
+                  ]);
+                  if (shouldForceServer) allHostQuotasCache.lastServerRefresh = now;
                   const allGroups = response?.response?.groups || [];
                   const parsed = allGroups.map(g => {
                     const gId = classifyGroupId(g);
@@ -5122,12 +5143,23 @@ async function main() {
 
               async function loadAllData(force) {
                 const sidecarPort = window.__catgirl_sidecar_port || 51149;
-                try {
-                  const [aResp, qGroups] = await Promise.all([
-                    fetch('http://127.0.0.1:' + sidecarPort + '/api/analytics' + (force ? '?refresh=1' : ''), { cache: 'no-store' })
-                      .then(r => r.ok ? r.json() : null).catch(() => null),
-                    fetchAllHostQuotasFromFiber(force).catch(() => [])
-                  ]);
+                const fetchAnalyticsWithTimeout = async () => {
+                  const ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+                  const timer = ctrl ? setTimeout(() => ctrl.abort(), 8000) : null;
+                  try {
+                    const r = await fetch(
+                      'http://127.0.0.1:' + sidecarPort + '/api/analytics' + (force ? '?refresh=1' : ''),
+                      { cache: 'no-store', signal: ctrl ? ctrl.signal : undefined }
+                    );
+                    return r.ok ? await r.json() : null;
+                  } catch (e) {
+                    return null;
+                  } finally {
+                    if (timer) clearTimeout(timer);
+                  }
+                };
+
+                const pAnalytics = fetchAnalyticsWithTimeout().then(aResp => {
                   if (aResp) {
                     state.analytics = aResp;
                     if (!state.selectedDate) {
@@ -5136,9 +5168,35 @@ async function main() {
                     }
                     if (aResp.todayStr) state.monthKey = aResp.todayStr.slice(0, 7);
                   }
-                  state.quotas = Array.isArray(qGroups) ? qGroups : [];
+                  if (modal.isConnected) {
+                    try { renderModal(); } catch (e) { console.error('[星星猫娘] 弹窗渲染异常:', e); }
+                  }
+                  return aResp;
+                });
+
+                const shouldRefreshQuota = Boolean(force) || !allHostQuotasCache.lastServerRefresh || (Date.now() - allHostQuotasCache.lastServerRefresh >= 5000);
+                const pQuotas = fetchAllHostQuotasFromFiber(shouldRefreshQuota)
+                  .catch(() => [])
+                  .then(qGroups => {
+                    state.quotas = Array.isArray(qGroups) ? qGroups : [];
+                    if (modal.isConnected && state.analytics !== null) {
+                      try { renderModal(); } catch (e) { console.error('[星星猫娘] 弹窗额度渲染异常:', e); }
+                    }
+                    return qGroups;
+                  });
+
+                try {
+                  await Promise.all([pAnalytics, pQuotas]);
                 } catch (e) {}
-                renderModal();
+
+                if (modal.isConnected) {
+                  try {
+                    renderModal();
+                  } catch (err) {
+                    console.error('[星星猫娘] 弹窗最终渲染异常:', err);
+                    bodyElModal.innerHTML = '<div style="padding:36px;text-align:center;color:#f87171;">读取统计数据失败，请点击右上角 ↻ 重试</div>';
+                  }
+                }
               }
 
               function buildSummaryHtml(summary) {
@@ -5691,7 +5749,7 @@ async function main() {
               if (!hud) return;
               isHudOpen = force !== undefined ? force : !isHudOpen;
               if (isHudOpen) {
-                syncDashboardData();
+                syncDashboardData(true);
                 hud.classList.remove('hud-hidden');
                 hud.classList.add('hud-visible');
                 positionHudPanel();

@@ -155,7 +155,13 @@ antigravity-catgirl-pet/
 
 ## 🔖 版本更新记录 (Changelog)
 
-### v1.2.1 (Current)
+### v1.2.2 (Current)
+- 🔄 **官方实时额度强刷同步**：修复 `retrieveUserQuotaSummary` `forceRefresh` 传参错误导致的额度缓存滞后问题，展开面板、打开弹窗及后台每 20 秒自动与官方服务端强刷对齐；
+- 🎯 **当前模型与配额池精准识别**：隔离桌宠自身 HUD DOM，补全 `Gemini 4 Neon`、`Carbon`、`Orchestrator` 等新型号识别，解决使用 Gemini 模型时误切至 `Claude and GPT models` 配额池的问题；
+- 📊 **用量统计弹窗防卡死**：为本地 `/api/analytics` 与宿主配额拉取增加超时兜底与渐进式独立渲染，彻底解决弹窗一直卡在「正在读取本地对话统计与实时额度...」的问题；
+- 🛠️ **新版 Antigravity 一键适配（含 `c68be7a`）**：新增 `fix_cdp.bat` 与 `scripts/fix_cdp.ps1` 自动补全快捷方式 `--remote-debugging-port=0`，并优化缺端口时的错误引导提示。
+
+### v1.2.1
 - 🎨 **界面克制精修（Unslop 优化）**：统一中性色阶、阴影层级与排版呼吸感，收敛多余高饱和装饰，点击反馈改为克制微压效果（无弹跳干扰）；
 - ⚡ **真 60fps 高清精灵图渲染引擎**：基于 `WebCodecs + WebGL2 + Worker + IndexedDB` 离线烘焙与缓存，彻底消除双 VP9 软解卡顿，并按桌宠缩放倍率动态匹配物理像素保持高清锐利，修复切动作黑屏与静态图重叠；
 - 🧭 **四角视口自适应与面板互斥**：Token 仪表盘支持四角智能避让展开不被窗口边界裁切，打开仪表盘与右键菜单保持严格互斥不重叠；
