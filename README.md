@@ -155,7 +155,11 @@ antigravity-catgirl-pet/
 
 ## 🔖 版本更新记录 (Changelog)
 
-### v1.2.2 (Current)
+### v1.2.3 (Current)
+- 🎨 **全组件跟随 Antigravity 主题配色**：自动读取宿主 `--color-background`、`--color-sidebar`、`--card` 与文字色，胶囊、悬浮仪表盘、右键菜单、对话气泡及统计弹窗实时跟随 Antigravity 深色/浅色等主题切换，不再固定死色；
+- 📐 **底部胶囊排版与模型名称清洗**：加宽底部状态胶囊至 `136px` 并修复模型标签省略号布局，避免 `tok` 溢出与模型名左右截断，同时自动剔除运行态 `Model: ... cannot be changed` 冗余提示与 `Medium/Low/Minimal` 后缀。
+
+### v1.2.2
 - 🔄 **官方实时额度强刷同步**：修复 `retrieveUserQuotaSummary` `forceRefresh` 传参错误导致的额度缓存滞后问题，展开面板、打开弹窗及后台每 20 秒自动与官方服务端强刷对齐；
 - 🎯 **当前模型与配额池精准识别**：隔离桌宠自身 HUD DOM，补全 `Gemini 4 Neon`、`Carbon`、`Orchestrator` 等新型号识别，解决使用 Gemini 模型时误切至 `Claude and GPT models` 配额池的问题；
 - 📊 **用量统计弹窗防卡死**：为本地 `/api/analytics` 与宿主配额拉取增加超时兜底与渐进式独立渲染，彻底解决弹窗一直卡在「正在读取本地对话统计与实时额度...」的问题；
