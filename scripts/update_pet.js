@@ -49,7 +49,8 @@ function fetchJson(url) {
   return new Promise((resolve) => {
     const options = {
       headers: {
-        'User-Agent': 'antigravity-catgirl-pet-updater'
+        'User-Agent': 'antigravity-catgirl-pet-updater',
+        'Cache-Control': 'no-cache'
       },
       timeout: 8000
     };
@@ -94,15 +95,35 @@ function compareVersions(v1, v2) {
 async function checkUpdate() {
   const pluginDir = getPluginDir();
   const local = getLocalVersionInfo(pluginDir);
+  const bust = Date.now();
 
-  const [remotePlugin, remoteCommit, latestRelease] = await Promise.all([
-    fetchJson(RAW_PLUGIN_URL),
-    fetchJson(COMMITS_API_URL),
-    fetchJson(RELEASES_API_URL)
+  const [remoteCommit, latestRelease, latestTags] = await Promise.all([
+    fetchJson(`${COMMITS_API_URL}?t=${bust}`),
+    fetchJson(RELEASES_API_URL),
+    fetchJson(`https://api.github.com/repos/${REPO}/tags?per_page=1`)
   ]);
 
-  const remoteVersion = remotePlugin?.version || latestRelease?.tag_name?.replace(/^v/, '') || local.version;
   const remoteSha = remoteCommit?.sha || '';
+  const shaPluginUrl = remoteSha
+    ? `https://raw.githubusercontent.com/${REPO}/${remoteSha}/plugin.json`
+    : `${RAW_PLUGIN_URL}?t=${bust}`;
+  const remotePlugin = await fetchJson(shaPluginUrl);
+
+  const candidates = [
+    remotePlugin?.version,
+    latestRelease?.tag_name?.replace(/^v/, ''),
+    Array.isArray(latestTags) && latestTags[0]?.name ? latestTags[0].name.replace(/^v/, '') : ''
+  ].filter(Boolean);
+
+  let remoteVersion = local.version;
+  for (const cand of candidates) {
+    if (compareVersions(cand, remoteVersion) > 0) {
+      remoteVersion = cand;
+    }
+  }
+  if (candidates.length > 0 && remoteVersion === local.version && remotePlugin?.version) {
+    remoteVersion = remotePlugin.version;
+  }
   const commitMsg = remoteCommit?.commit?.message ? remoteCommit.commit.message.split('\n')[0] : '';
   const releaseTitle = latestRelease?.name || (latestRelease?.tag_name ? `版本 ${latestRelease.tag_name}` : '');
   const releaseNotes = latestRelease?.body || commitMsg || '功能优化与体验提升';

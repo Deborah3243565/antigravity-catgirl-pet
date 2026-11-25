@@ -155,7 +155,11 @@ antigravity-catgirl-pet/
 
 ## 🔖 版本更新记录 (Changelog)
 
-### v1.2.3 (Current)
+### v1.2.4 (Current)
+- 💬 **防气泡闪烁与状态清理优化**：修复 Agent 运行期间切换模型提示气泡反复闪烁的问题（增加 `4s` 冷却防抖与模型名回退保持），并在重注入及销毁清理时无条件断开 `MutationObserver` 防止旧监听残留。
+- 🔄 **检查更新绕过 CDN 缓存与版本对比增强**：检查更新时先获取最新 Commit SHA 再精准拉取 `plugin.json`，结合 Release/Tag 最高语义版本比对以彻底解决旧版本号误报问题，并在更新卡片展示新提交标签。
+
+### v1.2.3
 - 🎨 **全组件跟随 Antigravity 主题配色**：自动读取宿主 `--color-background`、`--color-sidebar`、`--card` 与文字色，胶囊、悬浮仪表盘、右键菜单、对话气泡及统计弹窗实时跟随 Antigravity 深色/浅色等主题切换，不再固定死色；
 - 📐 **底部胶囊排版与模型名称清洗**：加宽底部状态胶囊至 `136px` 并修复模型标签省略号布局，避免 `tok` 溢出与模型名左右截断，同时自动剔除运行态 `Model: ... cannot be changed` 冗余提示与 `Medium/Low/Minimal` 后缀。
 

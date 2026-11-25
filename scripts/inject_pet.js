@@ -226,6 +226,15 @@ async function main() {
               clearInterval(window.__catgirl_sync_timer);
               window.__catgirl_sync_timer = null;
             }
+            if (window.__catgirl_model_observer) {
+              try { window.__catgirl_model_observer.disconnect(); } catch(e) {}
+              window.__catgirl_model_observer = null;
+            }
+            if (window.__catgirl_theme_observer) {
+              try { window.__catgirl_theme_observer.disconnect(); } catch(e) {}
+              window.__catgirl_theme_observer = null;
+            }
+            window.__catgirl_last_active_model = null;
             if (window.__catgirl_sse) {
               try { window.__catgirl_sse.close(); } catch(e) {}
               window.__catgirl_sse = null;
@@ -269,6 +278,15 @@ async function main() {
               if (typeof window.__catgirl_stop_sprite_engine === 'function') {
                 try { window.__catgirl_stop_sprite_engine(); } catch(e) {}
               }
+              if (window.__catgirl_model_observer) {
+                try { window.__catgirl_model_observer.disconnect(); } catch(e) {}
+                window.__catgirl_model_observer = null;
+              }
+              if (window.__catgirl_theme_observer) {
+                try { window.__catgirl_theme_observer.disconnect(); } catch(e) {}
+                window.__catgirl_theme_observer = null;
+              }
+              window.__catgirl_last_active_model = null;
             };
 
             // 注入更新样式
@@ -2118,12 +2136,14 @@ async function main() {
             window.__catgirl_sync_theme = syncAntigravityTheme;
             syncAntigravityTheme();
             try {
-              if (!window.__catgirl_theme_observer) {
-                window.__catgirl_theme_observer = new MutationObserver(() => syncAntigravityTheme());
-                window.__catgirl_theme_observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class', 'style', 'data-theme'] });
-                if (document.body) {
-                  window.__catgirl_theme_observer.observe(document.body, { attributes: true, attributeFilter: ['class', 'style', 'data-theme'] });
-                }
+              if (window.__catgirl_theme_observer) {
+                try { window.__catgirl_theme_observer.disconnect(); } catch (e) {}
+                window.__catgirl_theme_observer = null;
+              }
+              window.__catgirl_theme_observer = new MutationObserver(() => syncAntigravityTheme());
+              window.__catgirl_theme_observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class', 'style', 'data-theme'] });
+              if (document.body) {
+                window.__catgirl_theme_observer.observe(document.body, { attributes: true, attributeFilter: ['class', 'style', 'data-theme'] });
               }
               if (window.matchMedia && !window.__catgirl_theme_mql) {
                 window.__catgirl_theme_mql = window.matchMedia('(prefers-color-scheme: dark)');
@@ -4160,7 +4180,7 @@ async function main() {
                   if (detailEl) {
                     detailEl.style.display = 'flex';
                     detailEl.innerHTML = \`
-                      <div style="color: #4cc38a; font-weight: 500;">发现新版本：v\${data.latestVersion || '最新'}</div>
+                      <div style="color: #4cc38a; font-weight: 500;">\${(data.updateReason === 'new_commit' && data.latestVersion === currentVersion && data.latestCommit) ? ('发现新提交：v' + data.latestVersion + ' (' + data.latestCommit + ')') : ('发现新版本：v' + (data.latestVersion || '最新'))}</div>
                       <div style="font-size: 10px; color: #a1a1a6; max-height: 48px; overflow-y: auto;">
                         \${data.commitMessage ? '• ' + data.commitMessage : (data.releaseNotes ? '• ' + data.releaseNotes.substring(0, 60) : '• 优化与体验改进')}
                       </div>
@@ -4451,7 +4471,7 @@ async function main() {
             // 1. 深度动态感知 Antigravity 输入框/对话当前实时生效的具体模型
             function detectActiveComposerModel() {
               try {
-                const isPetElement = (el) => Boolean(el && el.closest && el.closest('#catgirl-pet-dock, #catgirl-dashboard-hud, #catgirl-analytics-modal, #catgirl-context-menu, #catgirl-toast'));
+                const isPetElement = (el) => Boolean(el && el.closest && el.closest('#antigravity-catgirl-dock, #antigravity-catgirl-contextmenu, #antigravity-catgirl-analytics-modal, #catgirl-pet-dock, #catgirl-dashboard-hud, #catgirl-analytics-modal, #catgirl-context-menu, #catgirl-toast'));
                 const cleanModelLabel = (raw) => (raw || '')
                   .replace(/^Select model,[ \t]*current:[ \t]*/i, '')
                   .replace(/^选择模型[^:：]*[:：][ \t]*/i, '')
@@ -5041,11 +5061,12 @@ async function main() {
                   if (resp.ok) stats = await resp.json();
                 } catch (e) {}
 
-                // 2. 动态感知当前对话正在实时生效的具体模型（结合前端控件与后端对话日志）
-                let detectedModel = detectActiveComposerModel();
+                // 2. 动态感知当前对话正在实时生效的具体模型（结合前端控件与后端对话日志，运行中缺帧时优先保持上次识别避免闪烁）
+                const rawComposerModel = detectActiveComposerModel();
+                let detectedModel = rawComposerModel;
                 const backendModel = (stats && stats.model && stats.model !== 'Gemini') ? stats.model : '';
                 if (!detectedModel || /^(high|medium|low|minimal|thinking)$/i.test(detectedModel)) {
-                  detectedModel = backendModel || detectedModel || 'Gemini 3.8 Flash High';
+                  detectedModel = window.__catgirl_last_active_model || backendModel || detectedModel || 'Gemini 3.8 Flash High';
                 }
                 const activeModel = detectedModel;
 
@@ -5055,8 +5076,12 @@ async function main() {
                 const targetQuotaGroupId = (previewPool !== 'auto') ? previewPool : quotaMeta.groupId;
 
                 if (window.__catgirl_last_active_model && window.__catgirl_last_active_model !== activeModel) {
-                  if (window.__antigravityCatgirl?.showBubble && !isEasterEggActive) {
-                    window.__antigravityCatgirl.showBubble('已切换至 ' + activeModel + '，配额池已同步', 2400);
+                  const nowBubble = Date.now();
+                  if (rawComposerModel && (nowBubble - (window.__catgirl_last_switch_bubble_at || 0) >= 4000)) {
+                    window.__catgirl_last_switch_bubble_at = nowBubble;
+                    if (window.__antigravityCatgirl?.showBubble && !isEasterEggActive) {
+                      window.__antigravityCatgirl.showBubble('已切换至 ' + activeModel + '，配额池已同步', 2400);
+                    }
                   }
                   force = true;
                 }
