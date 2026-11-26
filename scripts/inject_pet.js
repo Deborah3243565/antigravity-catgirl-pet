@@ -224,7 +224,6 @@ async function main() {
             window.__catgirl_initial_auto_compact = ${initialAutoCompact};
             window.__catgirl_initial_compact_threshold = ${initialCompactThreshold};
             window.__catgirl_initial_version = ${JSON.stringify(initialVersion)};
-            window.__catgirl_compact_abort = false;
             function mountPet() {
               if (!document.body || !document.head) {
                 if (document.readyState === 'loading') {
@@ -286,7 +285,6 @@ async function main() {
                 clearInterval(window.__catgirl_auto_update_timer);
                 window.__catgirl_auto_update_timer = null;
               }
-              window.__catgirl_compact_abort = true;
               if (window.__catgirl_sse) {
                 try { window.__catgirl_sse.close(); } catch(e) {}
                 window.__catgirl_sse = null;
@@ -4552,8 +4550,15 @@ async function main() {
               compactThresholdInput.addEventListener('change', (e) => {
                 const v = parseInt(e.target.value, 10);
                 if (!isNaN(v)) {
+                  const prevThresh = autoCompactThreshold;
                   setAutoCompactThreshold(v, true);
+                  if (autoCompactThreshold < prevThresh && compactState.phase === 'idle') {
+                    compactState.lastCompactByConv[getCurrentConvKey()] = 0;
+                  }
                   showBubble(\`自动压缩阈值已设为 ≥\${autoCompactThreshold}%\`, 1800);
+                  if (typeof syncDashboardData === 'function') {
+                    setTimeout(() => syncDashboardData(false), 120);
+                  }
                 } else {
                   renderAutoCompactPill();
                 }
@@ -4578,11 +4583,21 @@ async function main() {
 
             const compactState = {
               phase: 'idle',
-              lastCompactAt: 0,
+              lastCompactByConv: {},
+              targetConvKey: '',
               triggeredAt: 0,
               peakPctAtTrigger: 0,
-              wasRunningBeforeCompact: false
+              wasRunningBeforeCompact: false,
+              sawRunningAfterSend: false
             };
+
+            function getCurrentConvKey() {
+              try {
+                return (typeof getActiveConversationId === 'function' ? getActiveConversationId() : '') || document.title || 'default';
+              } catch (e) {
+                return document.title || 'default';
+              }
+            }
 
             function findHostChatInput() {
               const candidates = document.querySelectorAll(
@@ -4597,13 +4612,48 @@ async function main() {
               return null;
             }
 
+            function hasActiveCancelButton() {
+              const btn = document.querySelector('button[aria-label*="Cancel"]');
+              if (!btn) return false;
+              const r = btn.getBoundingClientRect();
+              return Boolean(r && r.width > 0 && r.height > 0);
+            }
+
             function isHostAgentRunning(stats) {
-              const hasCancelBtn = Boolean(document.querySelector('button[aria-label*="Cancel"]'));
+              if (hasActiveCancelButton()) return true;
+              const convId = typeof getActiveConversationId === 'function' ? getActiveConversationId() : '';
+              if (convId && convId !== 'none' && Array.isArray(stats?.runningTasks)) {
+                return stats.runningTasks.some((t) => t && t.id === convId);
+              }
               const runningCount = Array.isArray(stats?.runningTasks) ? stats.runningTasks.length : 0;
-              return hasCancelBtn || runningCount > 0 || Boolean(stats?.hasRunningTask);
+              return runningCount > 0 || Boolean(stats?.hasRunningTask);
+            }
+
+            function findLexicalCommand(editor, typeName) {
+              if (!editor || !editor._commands) return null;
+              for (const cmd of editor._commands.keys()) {
+                if (cmd && cmd.type === typeName) return cmd;
+              }
+              return null;
+            }
+
+            function clearLexicalInput(inputEl) {
+              const ed = inputEl && inputEl.__lexicalEditor;
+              if (ed) {
+                inputEl.focus();
+                const selAll = findLexicalCommand(ed, 'SELECT_ALL_COMMAND');
+                const rmText = findLexicalCommand(ed, 'REMOVE_TEXT_COMMAND');
+                if (selAll) ed.dispatchCommand(selAll, null);
+                if (rmText) ed.dispatchCommand(rmText, null);
+              }
             }
 
             function findHostSendButton() {
+              const direct = document.querySelector('button[aria-label="Send message"]');
+              if (direct && !direct.disabled) {
+                const r = direct.getBoundingClientRect();
+                if (r && r.width > 0) return direct;
+              }
               const btns = document.querySelectorAll('button');
               for (const b of btns) {
                 if (b.disabled) continue;
@@ -4622,6 +4672,12 @@ async function main() {
 
             function dispatchEnterKey(targetEl) {
               const evtInit = { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true, cancelable: true };
+              const ed = targetEl && targetEl.__lexicalEditor;
+              const enterCmd = findLexicalCommand(ed, 'KEY_ENTER_COMMAND');
+              if (ed && enterCmd) {
+                ed.dispatchCommand(enterCmd, new KeyboardEvent('keydown', evtInit));
+                return;
+              }
               targetEl.dispatchEvent(new KeyboardEvent('keydown', evtInit));
               targetEl.dispatchEvent(new KeyboardEvent('keypress', evtInit));
               targetEl.dispatchEvent(new KeyboardEvent('keyup', evtInit));
@@ -4632,7 +4688,7 @@ async function main() {
             }
 
             async function submitHostChatMessage(text, isSlashCommand = false) {
-              if (window.__catgirl_compact_abort) return false;
+              if (signal.aborted) return false;
               const inputEl = findHostChatInput();
               if (!inputEl) return false;
 
@@ -4642,55 +4698,75 @@ async function main() {
 
               try {
                 inputEl.focus();
-                const sel = window.getSelection();
-                if (sel) {
-                  const range = document.createRange();
-                  range.selectNodeContents(inputEl);
-                  range.collapse(false);
-                  sel.removeAllRanges();
-                  sel.addRange(range);
+                const ed = inputEl.__lexicalEditor;
+                const insertCmd = findLexicalCommand(ed, 'CONTROLLED_TEXT_INSERTION_COMMAND');
+                if (ed && insertCmd) {
+                  ed.dispatchCommand(insertCmd, text);
+                } else {
+                  document.execCommand('insertText', false, text);
+                  inputEl.dispatchEvent(new Event('input', { bubbles: true }));
                 }
-                document.execCommand('insertText', false, text);
-                inputEl.dispatchEvent(new Event('input', { bubbles: true }));
               } catch (e) {
                 return false;
               }
 
               await waitMs(340);
-              if (window.__catgirl_compact_abort) return false;
+              if (signal.aborted) return false;
+
+              // 校验文本是否确实写入 Lexical 编辑器
+              const insertedText = (inputEl.innerText || inputEl.textContent || '').trim();
+              if (insertedText.length === 0) {
+                return false;
+              }
 
               if (isSlashCommand) {
-                const slashPopup = document.querySelector('[role="listbox"], [role="menu"]');
-                if (slashPopup) {
-                  dispatchEnterKey(inputEl);
-                  await waitMs(240);
-                  if (window.__catgirl_compact_abort) return false;
+                const options = Array.from(document.querySelectorAll('[role="option"]'));
+                const compactOpt = options.find((opt) => {
+                  const firstLine = ((opt.innerText || opt.textContent || '').trim().split('\\n')[0] || '').trim().toLowerCase();
+                  return firstLine === 'compact' || firstLine === '/compact';
+                }) || options[0];
+                if (compactOpt) {
+                  const clickTarget = compactOpt.firstElementChild || compactOpt;
+                  clickTarget.click();
+                  await waitMs(350);
+                  if (signal.aborted) return false;
                 }
               }
 
-              const afterText = (inputEl.innerText || inputEl.textContent || '').trim();
-              if (afterText.length > 0) {
+              for (let attempt = 0; attempt < 2; attempt++) {
+                const curText = (inputEl.innerText || inputEl.textContent || '').trim();
+                const hasPill = Boolean(inputEl.querySelector('[data-lexical-decorator="true"]'));
+                if (curText.length === 0 && !hasPill) return true;
                 const sendBtn = findHostSendButton();
-                if (sendBtn) {
+                if (sendBtn && !sendBtn.disabled) {
                   sendBtn.click();
                 } else {
                   dispatchEnterKey(inputEl);
                 }
-                await waitMs(220);
+                await waitMs(380);
+                if (signal.aborted) return false;
               }
 
+              const remaining = (inputEl.innerText || inputEl.textContent || '').trim();
+              const remainingPill = Boolean(inputEl.querySelector('[data-lexical-decorator="true"]'));
+              if (remaining.length > 0 || remainingPill) {
+                clearLexicalInput(inputEl);
+                return false;
+              }
               return true;
             }
 
             async function checkAndRunAutoCompact(stats, effectiveCtxPct) {
-              if (window.__catgirl_compact_abort) return;
+              if (signal.aborted) return;
               const now = Date.now();
               const pct = Number(effectiveCtxPct || 0);
+              const convKey = getCurrentConvKey();
 
               if (compactState.phase === 'idle') {
                 if (!autoCompactEnabled) return;
                 if (pct < autoCompactThreshold) return;
-                if (now - compactState.lastCompactAt < AUTO_COMPACT_COOLDOWN_MS) return;
+                const lastConvCompactAt = compactState.lastCompactByConv[convKey] || 0;
+                if (now - lastConvCompactAt < AUTO_COMPACT_COOLDOWN_MS) return;
 
                 const inputEl = findHostChatInput();
                 if (!inputEl) return;
@@ -4699,7 +4775,7 @@ async function main() {
 
                 compactState.wasRunningBeforeCompact = isHostAgentRunning(stats);
                 compactState.peakPctAtTrigger = pct;
-                compactState.lastCompactAt = now;
+                compactState.targetConvKey = convKey;
                 compactState.triggeredAt = now;
                 compactState.phase = 'sending_compact';
 
@@ -4711,44 +4787,67 @@ async function main() {
                 );
 
                 const sent = await submitHostChatMessage('/compact', true);
-                if (!sent || window.__catgirl_compact_abort) {
+                if (!sent || signal.aborted) {
                   compactState.phase = 'idle';
                   compactState.wasRunningBeforeCompact = false;
                   return;
                 }
+                compactState.lastCompactByConv[convKey] = Date.now();
+                compactState.sawRunningAfterSend = false;
                 compactState.phase = 'waiting_compact_done';
                 return;
               }
 
               if (compactState.phase === 'waiting_compact_done') {
+                if (convKey !== compactState.targetConvKey) {
+                  compactState.phase = 'idle';
+                  compactState.wasRunningBeforeCompact = false;
+                  compactState.sawRunningAfterSend = false;
+                  return;
+                }
                 const elapsed = now - compactState.triggeredAt;
                 if (elapsed > AUTO_COMPACT_TIMEOUT_MS) {
                   compactState.phase = 'idle';
                   compactState.wasRunningBeforeCompact = false;
+                  compactState.sawRunningAfterSend = false;
                   return;
                 }
-                if (elapsed < 3000) return;
 
-                const agentRunning = isHostAgentRunning(stats);
-                const ctxDropped = (pct > 0 && pct <= Math.max(65, compactState.peakPctAtTrigger - 15));
-                const finishedIdle = (!agentRunning && (ctxDropped || (elapsed >= 6000 && pct < compactState.peakPctAtTrigger)));
+                // 压缩进行中以当前对话框的 Cancel 按钮为准，避免被其他会话或后台终端任务干扰
+                const compactRunning = hasActiveCancelButton();
+                if (compactRunning) {
+                  compactState.sawRunningAfterSend = true;
+                  return;
+                }
+                if (elapsed < 2500) return;
+
+                // Antigravity 的 /compact 完成后，CHECKPOINT 步仍记录压缩前的 cache_read_tokens，
+                // 界面百分比要到下一轮对话才刷新，因此不能强制要求 pct 立即下降
+                const ctxDropped = (pct > 0 && pct <= compactState.peakPctAtTrigger - 15);
+                const finishedIdle = (compactState.sawRunningAfterSend || ctxDropped || elapsed >= 12000);
 
                 if (finishedIdle) {
                   if (compactState.wasRunningBeforeCompact) {
                     compactState.phase = 'resuming_task';
                     await waitMs(700);
-                    if (window.__catgirl_compact_abort) return;
+                    if (signal.aborted || getCurrentConvKey() !== compactState.targetConvKey) {
+                      compactState.phase = 'idle';
+                      compactState.wasRunningBeforeCompact = false;
+                      compactState.sawRunningAfterSend = false;
+                      return;
+                    }
                     const resumed = await submitHostChatMessage('继续刚才未完成的任务', false);
                     if (resumed) {
-                      showBubble(\`上下文压缩完成（当前 \${pct}%），已自动发送「继续」恢复任务喵\`, 3200);
+                      showBubble(\`上下文压缩完成，已自动发送「继续」恢复任务喵\`, 3200);
                     } else {
-                      showBubble(\`上下文压缩完成（当前 \${pct}%），请点击继续任务喵\`, 3000);
+                      showBubble(\`上下文压缩完成，请点击继续任务喵\`, 3000);
                     }
                   } else {
-                    showBubble(\`上下文自动压缩完成（当前 \${pct}%）喵\`, 2800);
+                    showBubble(\`上下文自动压缩完成喵（下一轮对话将刷新占用率）\`, 3000);
                   }
                   compactState.phase = 'idle';
                   compactState.wasRunningBeforeCompact = false;
+                  compactState.sawRunningAfterSend = false;
                 }
               }
             }

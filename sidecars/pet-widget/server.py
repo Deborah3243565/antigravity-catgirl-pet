@@ -393,10 +393,11 @@ def get_native_stats(override_pct=None, conversation_id=None):
                 with open(target_transcript, "r", encoding="utf-8", errors="ignore") as f:
                     for line in f:
                         tail_lines.append(line)
-                        if "PLANNER_RESPONSE" in line:
+                        if "PLANNER_RESPONSE" in line or '"CHECKPOINT"' in line:
                             try:
                                 d = json.loads(line)
-                                if d.get("type") == "PLANNER_RESPONSE":
+                                stype = d.get("type")
+                                if stype == "PLANNER_RESPONSE":
                                     inp = int(d.get("input_tokens", 0) or 0)
                                     cache_r = int(d.get("cache_read_tokens", 0) or 0)
                                     cache_w = int(d.get("cache_creation_tokens", 0) or 0)
@@ -404,6 +405,11 @@ def get_native_stats(override_pct=None, conversation_id=None):
                                     conv_total_tokens += inp + cache_r + cache_w + out
                                     conv_requests += 1
                                     ctx_tokens = inp + cache_r
+                                elif stype == "CHECKPOINT" and d.get("status") == "DONE":
+                                    # /compact 完成后 Antigravity 只写 CHECKPOINT 不写 PLANNER_RESPONSE；
+                                    # CHECKPOINT 的 input/cache_read 是压缩前上下文，压缩后的新上下文为摘要 output_tokens + 系统提示基线
+                                    out = int(d.get("output_tokens", 0) or 0)
+                                    ctx_tokens = max(out + 20000, 12000)
                             except Exception:
                                 pass
                 ctx_pct = min(100, max(1, round(ctx_tokens / 262144 * 100))) if ctx_tokens > 0 else 0

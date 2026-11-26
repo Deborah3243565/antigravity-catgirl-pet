@@ -155,7 +155,12 @@ antigravity-catgirl-pet/
 
 ## 🔖 版本更新记录 (Changelog)
 
-### v1.2.5 (Current)
+### v1.2.6 (Current)
+- 🗜️ **自动 `/compact` 精准触发与 Lexical 编辑器适配**：改用 `editor.dispatchCommand`（`CONTROLLED_TEXT_INSERTION_COMMAND` / `SELECT_ALL_COMMAND` / `REMOVE_TEXT_COMMAND` / `KEY_ENTER_COMMAND`）原生驱动 Antigravity 的 Lexical 输入框，并修正斜杠命令弹窗 `firstElementChild` 点击与提交逻辑（避免 `mousedown` 触发失焦关闭菜单），确保 `/compact` 稳定选中并发送；
+- 🔁 **压缩完成感知、热重载隔离与任务自动续接修复**：将全局中止标志重构为单次挂载独立的 `AbortController` 信号（修复热重载后自动压缩被旧清理函数永久阻断的问题），并改为基于当前对话 `Cancel` 按钮状态判断 `/compact` 执行完成、按会话隔离冷却计时，不受其他会话或后台终端任务干扰；
+- 📊 **`CHECKPOINT` 后即时上下文刷新**：修复 [server.py](sidecars/pet-widget/server.py) 仅解析 `PLANNER_RESPONSE` 导致 `/compact` 完成后上下文占用率与 Token 数滞留高位的 Bug，识别 `CHECKPOINT`（`status: "DONE"`）并即时刷新压缩后的上下文水位，防止误判与重复压缩。
+
+### v1.2.5
 - 🔄 **后台静默自动更新**：新增「自动更新（后台静默）」开关（默认开启，支持右键菜单切换并持久化保存），启动 `4.5s` 后及每 30 分钟自动检测 GitHub 新版本并静默拉取配置与热重载；同步修复菜单初始版本号硬编码问题，改为动态读取 `plugin.json`。
 - 🗜️ **自动 `/compact` 压缩与任务自动续接**：新增「自动压缩 ≥ [80] %」开关与行内自定义阈值输入框（范围 `50%`–`95%`，默认 `80%`、默认开启），支持在 Agent 运行期间安全触发 `/compact` 压缩（不覆盖未发送输入、带 `180s` 冷却防抖），并在压缩完成后自动发送「继续刚才未完成的任务」恢复执行。
 
