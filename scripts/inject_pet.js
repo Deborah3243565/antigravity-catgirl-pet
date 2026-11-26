@@ -2391,7 +2391,7 @@ async function main() {
                     <div class="hud-fill hud-fill-ctx" id="live-hud-ctx-bar" style="width: 0%;"></div>
                   </div>
                   <div class="hud-timer-row">
-                    <span id="live-hud-ctx-tokens">-- / 256K tok</span>
+                    <span id="live-hud-ctx-tokens">-- / 512K tok</span>
                     <span id="live-hud-ctx-hint" style="color: #4cc38a; font-size: 10px;">上下文正常</span>
                   </div>
                 </div>
@@ -5134,6 +5134,25 @@ async function main() {
               };
             }
 
+            function resolveModelContextLimit(modelName) {
+              const m = (modelName || '').toLowerCase();
+              if (
+                m.indexOf('gemini 4') !== -1 || m.indexOf('gemini-4') !== -1 ||
+                m.indexOf('hydrogen') !== -1 || m.indexOf('neon') !== -1 ||
+                m.indexOf('argon') !== -1 || m.indexOf('carbon') !== -1 ||
+                m.indexOf('orchestrator') !== -1
+              ) {
+                return '512K tok';
+              }
+              if (m.indexOf('image') !== -1) return '64K tok';
+              if (m.indexOf('gemini 3.8') !== -1 || m.indexOf('gemini-3.8') !== -1) return '256K tok';
+              if (m.indexOf('gemini 3') !== -1 || m.indexOf('gemini-3') !== -1 || m.indexOf('flash lite') !== -1 || m.indexOf('flash-lite') !== -1) {
+                return '128K tok';
+              }
+              if (m.indexOf('gpt-oss') !== -1 || m.indexOf('gpt oss') !== -1) return '80K tok';
+              return '256K tok';
+            }
+
             function parseDescCountdown(desc) {
               if (!desc) return '';
               const m = desc.match(/refresh in ([^.]+)/i);
@@ -5316,6 +5335,9 @@ async function main() {
               const tokenDisplay = data.tokenDisplay || '--';
               const quotaGroup = data.quotaGroupName || 'Gemini Models';
               const activeModel = data.contextModel || 'Gemini';
+              const ctxLimitLabel = data.contextLimit || resolveModelContextLimit(activeModel);
+              const cleanCtxTok = tokenDisplay === '--' ? '--' : tokenDisplay.replace(/ tok$/i, '').trim();
+              const ctxDisplayWithLimit = cleanCtxTok + ' / ' + ctxLimitLabel;
 
               const fiveNum = parseFloat(data.fiveBalance);
               let quotaText = '5h --';
@@ -5396,7 +5418,7 @@ async function main() {
 
               const pillEl = document.getElementById('live-catgirl-token-pill');
               if (pillEl) {
-                pillEl.title = "当前实时模型: " + activeModel + " | 上下文: " + (data.contextTokens || (tokenDisplay + " tok")) + " (" + ctxPct + "% 已用) | 本对话累计: " + (data.convTotal || '--') + " | [" + quotaGroup + "] 5小时: " + data.fiveBalance + " · 周: " + data.weekBalance + " (点击展开完整看板)";
+                pillEl.title = "当前实时模型: " + activeModel + " | 上下文: " + ctxDisplayWithLimit + " (" + ctxPct + "% 已用) | 本对话累计: " + (data.convTotal || '--') + " | [" + quotaGroup + "] 5小时: " + data.fiveBalance + " · 周: " + data.weekBalance + " (点击展开完整看板)";
               }
 
               const hudFiveVal = document.getElementById('live-hud-five-val');
@@ -5457,7 +5479,7 @@ async function main() {
                 else if (ctxPct >= 60) hudCtxBar.style.background = '#e5a93c';
                 else hudCtxBar.style.background = '#38bdf8';
               }
-              if (hudCtxTokens) hudCtxTokens.textContent = data.contextTokens || (tokenDisplay + ' / 256K tok');
+              if (hudCtxTokens) hudCtxTokens.textContent = ctxDisplayWithLimit;
 
               if (hudCtxHint) {
                 if (ctxPct >= 80) {
@@ -5589,7 +5611,8 @@ async function main() {
                 const shadow = bar?.shadowRoot;
                 const sidecarPort = window.__catgirl_sidecar_port || 51149;
 
-                // 1. 先拉取本地 sidecar 统计（按当前活跃对话框 conversation_id 精准拉取，并可拿到后端精准模型名）
+                // 1. 先提取当前实时模型与对话框 ID，再拉取本地 sidecar 统计（精确计算对应模型的上下文上限与占用率）
+                const rawComposerModel = detectActiveComposerModel();
                 let stats = null;
                 const activeConvId = getActiveConversationId();
                 const isConvChanged = (window.__catgirl_last_conv_id && window.__catgirl_last_conv_id !== activeConvId);
@@ -5615,6 +5638,9 @@ async function main() {
                   const timer = setTimeout(() => controller.abort(), 2500);
                   const qs = new URLSearchParams();
                   if (activeConvId) qs.set('conversation_id', activeConvId);
+                  if (rawComposerModel && !/^(high|medium|low|minimal|thinking)$/i.test(rawComposerModel)) {
+                    qs.set('model', rawComposerModel);
+                  }
                   if (liveHostPct !== null && liveHostPct > 0) qs.set('host_ctx_pct', String(liveHostPct));
                   const queryStr = qs.toString() ? ('?' + qs.toString()) : '';
                   const resp = await fetch('http://127.0.0.1:' + sidecarPort + '/api/stats' + queryStr, {
@@ -5626,7 +5652,6 @@ async function main() {
                 } catch (e) {}
 
                 // 2. 动态感知当前对话正在实时生效的具体模型（结合前端控件与后端对话日志，运行中缺帧时优先保持上次识别避免闪烁）
-                const rawComposerModel = detectActiveComposerModel();
                 let detectedModel = rawComposerModel;
                 const backendModel = (stats && stats.model && stats.model !== 'Gemini') ? stats.model : '';
                 if (!detectedModel || /^(high|medium|low|minimal|thinking)$/i.test(detectedModel)) {
@@ -5734,7 +5759,8 @@ async function main() {
                   cacheRate,
                   convTotal,
                   convRequests,
-                  contextTokens: ctxTokens
+                  contextTokens: ctxTokens,
+                  contextLimit: stats?.contextLimit || resolveModelContextLimit(activeModel)
                 });
 
                 if (stats) applyAutoPoseFromStats(stats, ctxPct);

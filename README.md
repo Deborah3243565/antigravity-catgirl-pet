@@ -155,7 +155,11 @@ antigravity-catgirl-pet/
 
 ## 🔖 版本更新记录 (Changelog)
 
-### v1.2.6 (Current)
+### v1.2.7 (Current)
+- 📏 **按模型动态适配 512K 上下文上限**：依据 Antigravity 运行时模型检查点配额，新增 [`_get_model_context_limit`](sidecars/pet-widget/server.py) 与 `resolveModelContextLimit`，为 **Gemini 4 全系**（`Hydrogen` / `Neon` / `Argon` / `Carbon` / `Orchestrator`）自动匹配 **`512K tok`（`512,000`）** 上下文上限与百分比计算，其余模型按各自上限（`256K` / `128K` / `80K` / `64K`）自适应；
+- ⚡ **切换模型即时重算与限额展示**：前端将输入框实时选中的模型传入 `/api/stats?model=...`，悬浮 HUD 与底部胶囊 Tooltip 动态显示 `当前用量 / 模型上限`（如 `153.7K / 512K tok`），切换模型后无需等待下一轮回复即可即时刷新百分比与自动压缩基准。
+
+### v1.2.6
 - 🗜️ **自动 `/compact` 精准触发与 Lexical 编辑器适配**：改用 `editor.dispatchCommand`（`CONTROLLED_TEXT_INSERTION_COMMAND` / `SELECT_ALL_COMMAND` / `REMOVE_TEXT_COMMAND` / `KEY_ENTER_COMMAND`）原生驱动 Antigravity 的 Lexical 输入框，并修正斜杠命令弹窗 `firstElementChild` 点击与提交逻辑（避免 `mousedown` 触发失焦关闭菜单），确保 `/compact` 稳定选中并发送；
 - 🔁 **压缩完成感知、热重载隔离与任务自动续接修复**：将全局中止标志重构为单次挂载独立的 `AbortController` 信号（修复热重载后自动压缩被旧清理函数永久阻断的问题），并改为基于当前对话 `Cancel` 按钮状态判断 `/compact` 执行完成、按会话隔离冷却计时，不受其他会话或后台终端任务干扰；
 - 📊 **`CHECKPOINT` 后即时上下文刷新**：修复 [server.py](sidecars/pet-widget/server.py) 仅解析 `PLANNER_RESPONSE` 导致 `/compact` 完成后上下文占用率与 Token 数滞留高位的 Bug，识别 `CHECKPOINT`（`status: "DONE"`）并即时刷新压缩后的上下文水位，防止误判与重复压缩。

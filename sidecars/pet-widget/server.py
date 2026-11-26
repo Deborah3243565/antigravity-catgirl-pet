@@ -164,8 +164,25 @@ def poll_running_tasks():
         _task_tracker["last_poll"] = now_ts
         return list(new_running_map.values())
 
-_MODEL_TAIL_RE = re.compile(rb'(?:Gemini [0-9][^\x00-\x1f"]{2,35}|Claude [^\x00-\x1f"]{2,35}|GPT[^\x00-\x1f"]{2,35})')
+_MODEL_TAIL_RE = re.compile(rb'(?:Gemini [0-9][^\x00-\x1f"]{2,35}|Claude [^\x00-\x1f"]{2,35}|GPT[^\x00-\x1f"]{2,35}|Orchestrator[^\x00-\x1f"]{0,35})')
 _STEP_IDX_RE = re.compile(rb'last_step_index[^\d]{1,10}(\d+)')
+
+def _get_model_context_limit(model_name):
+    """根据 Antigravity 模型检查点配额返回有效上下文上限 (tokens, 显示文本)。"""
+    m = (model_name or "").lower()
+    if any(k in m for k in ("gemini 4", "gemini-4", "hydrogen", "neon", "argon", "carbon", "orchestrator")):
+        return 512000, "512K tok"
+    if "image" in m:
+        return 65536, "64K tok"
+    if "gemini 3.8" in m or "gemini-3.8" in m:
+        return 256000, "256K tok"
+    if any(k in m for k in ("gemini 3", "gemini-3", "flash lite", "flash-lite", "2.5-flash")):
+        return 128000, "128K tok"
+    if "gpt-oss" in m or "gpt oss" in m:
+        return 80000, "80K tok"
+    if "claude" in m or "opus" in m or "sonnet" in m:
+        return 256000, "256K tok"
+    return 256000, "256K tok"
 
 def _clean_model_name(raw, keep_tier=False):
     s = (raw or "").strip()
@@ -340,7 +357,7 @@ def get_analytics_data(force=False):
         _analytics_cache["last_computed"] = time.time()
     return result
 
-def get_native_stats(override_pct=None, conversation_id=None):
+def get_native_stats(override_pct=None, conversation_id=None, active_model=None):
     now_ts = time.time()
     brain_dir = os.path.join(os.environ.get("USERPROFILE", ""), ".gemini", "antigravity", "brain")
 
@@ -352,7 +369,8 @@ def get_native_stats(override_pct=None, conversation_id=None):
     conv_total_tokens = 0
     conv_requests = 0
     real_tps = "--"
-    model_name = "Gemini"
+    model_name = (active_model or "").strip() or "Gemini"
+    ctx_limit_tokens, ctx_limit_label = _get_model_context_limit(model_name)
 
     if os.path.exists(brain_dir):
         transcripts = []
@@ -379,14 +397,15 @@ def get_native_stats(override_pct=None, conversation_id=None):
         # 提取目标会话当前上下文占用与真实生成速率 (tok/s)
         real_tps = "--"
         if target_transcript:
-            # 获取当前对话最新使用的具体模型名
+            # 获取当前对话最新使用的具体模型名（若前端尚未传实时模型，则回退读取会话元数据）
             try:
                 target_cid = os.path.basename(os.path.dirname(os.path.dirname(os.path.dirname(target_transcript))))
                 c_mods = _load_conv_step_models(target_cid, keep_tier=True)
-                if c_mods:
+                if c_mods and not active_model:
                     model_name = c_mods[-1][1]
             except Exception:
                 pass
+            ctx_limit_tokens, ctx_limit_label = _get_model_context_limit(model_name)
             try:
                 # 全量扫描当前对话框日志，统计完整累计 Token 总量、请求数，同时提取末尾上下文与生成速率
                 tail_lines = deque(maxlen=120)
@@ -412,7 +431,7 @@ def get_native_stats(override_pct=None, conversation_id=None):
                                     ctx_tokens = max(out + 20000, 12000)
                             except Exception:
                                 pass
-                ctx_pct = min(100, max(1, round(ctx_tokens / 262144 * 100))) if ctx_tokens > 0 else 0
+                ctx_pct = min(100, max(1, round(ctx_tokens / ctx_limit_tokens * 100))) if ctx_tokens > 0 else 0
                 # 基于最近有效步骤的 output_tokens 与时间差，过滤整秒取整(dt<2s)及异常尖峰后取中位速率
                 prev_ts = None
                 step_tps_samples = []
@@ -541,7 +560,8 @@ def get_native_stats(override_pct=None, conversation_id=None):
         "contextTokens": fmt_ctx(ctx_tokens),
         "contextTokensRaw": ctx_tokens,
         "contextPercent": ctx_pct,
-        "contextLimit": "256K tok",
+        "contextLimit": ctx_limit_label,
+        "contextLimitRaw": ctx_limit_tokens,
         "model": model_name,
         "today": _history_cache["today"],
         "month": _history_cache["month"],
@@ -796,6 +816,7 @@ class PetRequestHandler(BaseHTTPRequestHandler):
         if clean_path == "/api/stats":
             override_pct = None
             conversation_id = None
+            req_model = None
             try:
                 parsed_qs = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
                 if "host_ctx_pct" in parsed_qs:
@@ -806,9 +827,13 @@ class PetRequestHandler(BaseHTTPRequestHandler):
                     raw_cid = parsed_qs["conversation_id"][0].strip()
                     if raw_cid == "none" or re.fullmatch(r"[0-9a-zA-Z_-]{8,64}", raw_cid):
                         conversation_id = raw_cid
+                if "model" in parsed_qs and parsed_qs["model"]:
+                    raw_mod = parsed_qs["model"][0].strip()
+                    if raw_mod and len(raw_mod) <= 120:
+                        req_model = raw_mod
             except Exception:
                 pass
-            stats = get_native_stats(override_pct=override_pct, conversation_id=conversation_id)
+            stats = get_native_stats(override_pct=override_pct, conversation_id=conversation_id, active_model=req_model)
             payload = json.dumps(stats, ensure_ascii=False).encode("utf-8")
             self.send_response(200)
             self.send_header("Content-Type", "application/json; charset=utf-8")
